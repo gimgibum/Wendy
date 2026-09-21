@@ -1,20 +1,21 @@
-<!-- //메인 캘린더 및 통합 화면
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Wendy - 약속 조율 캘린더</title>
-  
-  <!-- 1. Supabase CDN (패키지 다운로드 대신 사용) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
-  <!-- 2. 본인의 메인 JS 파일 불러오기 (type="module" 필수) -->
-  <script type="module" src="js/app.js"></script>
+    <meta charset="UTF-8">
+    <title>Wendy - 약속 조율 캘린더</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- 2. 본인의 메인 JS 파일 불러오기 (type="module" 필수) -->
+    <script type="module" src="js/app.js"></script>
 </head>
+
 <body>
-  <!-- 화면 구성 요소들 -->
+    <!-- 화면 구성 요소들 -->
 </body>
-</html> -->
+
+</html>
 
 <!DOCTYPE html>
 <html lang="ko">
@@ -126,11 +127,11 @@
 
     <div class="card">
 
-        <!-- 로그인 폼 -->
+        <!-- 로그인 -->
         <div id="login-form">
             <div class="title-area">
-                <h1>다시 만나서 반가워</h1>
-                <p>아이디와 비밀번호로 로그인해줘</p>
+                <h1>Login</h1>
+
             </div>
 
             <div class="field">
@@ -147,11 +148,10 @@
             </div>
         </div>
 
-        <!-- 회원가입 폼 -->
+        <!-- 회원가입-->
         <div id="signup-form" class="hidden">
             <div class="title-area">
-                <h1>환영해, 시작해볼까?</h1>
-                <p>아이디와 비밀번호만 있으면 바로 시작할 수 있어</p>
+                <h1>회원가입</h1>
             </div>
 
             <div class="field">
@@ -173,49 +173,71 @@
 
     </div>
     <script type="module">
-        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'; 
-        const supabase = createClient( 'https://dmkvbvzukqtfiwyyphtl.supabase.co', 'sb_publishable_nFz7j6nrEGchxMVp-CBh1Q_XuQsKpw4' ); 
-        const loginForm = document.getElementById('login-form');
-        const signupForm = document.getElementById('signup-form'); // 로그인 <-> 회원가입 화면 전환 
-        document.getElementById('go-signup').addEventListener('click', () => { loginForm.classList.add('hidden'); signupForm.classList.remove('hidden'); }); 
-        document.getElementById('go-login').addEventListener('click', () => { signupForm.classList.add('hidden');
-        loginForm.classList.remove('hidden'); }); // 아이디를 Supabase Auth가 요구하는 이메일 형식으로 변환 
-        function toFakeEmail(username) { return `${username}@wendy.local`; } 
-        // ---- 로그인 ---- 
-        document.getElementById('login-btn').addEventListener('click', async () => { 
-            const username = document.getElementById('login-username').value.trim(); 
-            const password = document.getElementById('login-password').value; 
-            const errorEl = document.getElementById('login-error'); errorEl.textContent = ''; 
-            if (!username || !password) { errorEl.textContent = '아이디와 비밀번호를 모두 입력해줘'; return; } 
-            const { data, error } = await supabase.auth.signInWithPassword({ email: toFakeEmail(username), password, }); 
-            if (error) { 
-              errorEl.textContent = '아이디 또는 비밀번호가 올바르지 않아'; 
-              return;
-            } // 로그인 성공 → 메인 캘린더 화면으로 이동 
-            window.location.href = 'calendar.html'; }); // ---- 회원가입 ---- 
-            document.getElementById('signup-btn').addEventListener('click', async () => { 
-              const username = document.getElementById('signup-username').value.trim();
-              const password = document.getElementById('signup-password').value; 
-              const passwordConfirm = document.getElementById('signup-password-confirm').value; 
-              const errorEl = document.getElementById('signup-error'); errorEl.textContent = ''; 
-              if (!username || !password || !passwordConfirm) { 
-                errorEl.textContent = '모든 항목을 입력해줘'; 
-                return; 
-              } 
-              if (password !== passwordConfirm) {
-                 errorEl.textContent = '비밀번호가 서로 달라'; 
-                 return; 
-              } 
-              if (password.length < 6) { 
-                errorEl.textContent='비밀번호는 6자 이상이어야 해' ; 
-                return; 
-              }
-              const { data, error }= await supabase.auth.signUp({ email: toFakeEmail(username), password, }); 
-              if (error) { errorEl.textContent='이미 사용 중인 아이디이거나 오류가 발생했어' ; 
-               return; 
-               
-              } // 가입 성공 → 온보딩(이름/학교/그룹 설정) 화면으로 이동 
-              window.location.href='onboarding.html' ; }); 
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+      const supabase = createClient('https://xyz.supabase.co', 'public-anon-key');
+
+      const loginForm = document.getElementById('login-form');
+      const signupForm = document.getElementById('signup-form');
+
+      const goSignupBtn = document.getElementById('go-signup');
+      const goLoginBtn = document.getElementById('go-login');
+
+      const loginBtn = document.getElementById('login-btn');
+      const signupBtn = document.getElementById('signup-btn');
+
+      const loginError = document.getElementById('login-error');
+      const signupError = document.getElementById('signup-error');
+
+      // 2. [화면 전환] 회원가입 버튼 클릭했을 때
+      goSignupBtn.addEventListener('click', () => {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+        loginError.textContent = ''; // 에러 메시지 초기화
+      });
+
+      // 3. [화면 전환] "로그인" 버튼 클릭했을 때
+      goLoginBtn.addEventListener('click', () => {
+        signupForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        signupError.textContent = ''; // 에러 메시지 초기화
+      });
+
+      // 4. [기능] 로그인 버튼 클릭 이벤트
+      loginBtn.addEventListener('click', () => {
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        if (!username || !password) {
+          loginError.textContent = '아이디와 비밀번호를 모두 입력해주세요';
+          return;
+        }
+
+        // 로그인 성공 -> 메인 페이지로 이동
+        window.location.href = 'calendar.html';
+      });
+
+      // 5. [기능] 회원가입 버튼 클릭 이벤트
+      signupBtn.addEventListener('click', () => {
+        const username = document.getElementById('signup-username').value.trim();
+        const password = document.getElementById('signup-password').value;
+        const passwordConfirm = document.getElementById('signup-password-confirm').value;
+
+        if (!username || !password || !passwordConfirm) {
+          signupError.textContent = '모든 항목을 입력해주세요';
+          return;
+        }
+        if (password.length < 6) {
+          signupError.textContent = '비밀번호는 6자 이상이어야 합니다';
+          return;
+        }
+        if (password !== passwordConfirm) {
+          signupError.textContent = '비밀번호가 일치하지 않습니다';
+          return;
+        }
+
+        // 회원가입 성공 -> 온보딩 페이지로 이동
+        window.location.href = 'onboarding.html';
+      });
     </script>
 
 </body>

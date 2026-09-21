@@ -1,12 +1,9 @@
 //Supabase Database CRUD (groups, members, events)
 import { supabase } from "./config.js";
 
-// ==========================================
-// 1. GROUPS (그룹 관련)
-// ==========================================
-
+// GROUP(그룹)
 /**
- * 새로운 그룹을 생성하고 난수 코드를 부여합니다.
+ * 새로운 그룹을 생성하고 랜덤으로 코드 부여
  */
 export async function createGroup() {
   // 6자리 대문자/숫자 조합 그룹 코드 생성
@@ -23,7 +20,7 @@ export async function createGroup() {
 }
 
 /**
- * 그룹 코드로 그룹 정보를 조회합니다.
+ * 그룹 코드로 그룹 정보 조회
  */
 export async function getGroupByCode(groupCode) {
   const { data, error } = await supabase
@@ -36,12 +33,11 @@ export async function getGroupByCode(groupCode) {
   return data;
 }
 
-// ==========================================
+
 // 2. MEMBERS (그룹 멤버 및 개인 설정 관련)
-// ==========================================
 
 /**
- * 로그인한 사용자를 특정 그룹의 멤버로 등록합니다.
+ * 로그인한 사용자를 특정 그룹의 멤버로 등록
  */
 export async function joinGroupMember({
   userId,
@@ -71,7 +67,7 @@ export async function joinGroupMember({
 }
 
 /**
- * 특정 그룹에 속한 전체 멤버 목록을 조회합니다. (그룹원 색상 및 학교 정보 확인용)
+ * 특정 그룹에 속한 전체 멤버 목록을 조회 (그룹원 색상 및 학교 정보 확인용)
  */
 export async function getGroupMembers(groupId) {
   const { data, error } = await supabase
@@ -84,7 +80,7 @@ export async function getGroupMembers(groupId) {
 }
 
 /**
- * 내 멤버 정보의 학교/교육청 코드를 업데이트합니다.
+ * 내 멤버 정보의 학교/교육청 코드를 업데이트
  */
 export async function updateMemberSchoolInfo(memberId, schoolCode, officeCode) {
   const { data, error } = await supabase
@@ -102,9 +98,7 @@ export async function updateMemberSchoolInfo(memberId, schoolCode, officeCode) {
   return data;
 }
 
-// ==========================================
 // 3. EVENTS (개인 일정 CRUD)
-// ==========================================
 
 /**
  * 특정 그룹의 모든 개인 일정을 가져옵니다.
@@ -121,7 +115,7 @@ export async function getGroupEvents(groupId) {
 }
 
 /**
- * 신규 일정을 등록합니다.
+ * 신규 일정을 등록
  */
 export async function createEvent({
   groupId,
@@ -151,7 +145,7 @@ export async function createEvent({
 }
 
 /**
- * 기존 일정을 수정합니다.
+ * 기존 일정을 수정
  */
 export async function updateEvent(eventId, { title, date, time, memo }) {
   const { data, error } = await supabase
@@ -171,7 +165,7 @@ export async function updateEvent(eventId, { title, date, time, memo }) {
 }
 
 /**
- * 일정을 삭제합니다.
+ * 일정 삭제
  */
 export async function deleteEvent(eventId) {
   const { error } = await supabase.from("events").delete().eq("id", eventId);

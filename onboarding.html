@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wendy - 학교 등록</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <div class="screen">
+    <div class="field-group">
+      <div style="text-align: center; margin: 40px 0 24px;">
+        <h1 style="font-size: 17px; font-weight: 600; margin-bottom: 6px;">학교를 등록해주세요</h1>
+        <p style="font-size: 12px; color: #8a8a8e;">등록하면 시험기간·방학이 자동으로 캘린더에 표시돼요</p>
+      </div>
+
+      <div class="school-search-box">
+        <span class="field-icon"></span>
+        <input type="text" id="school-search-input" placeholder="학교 이름을 검색하세요" />
+      </div>
+
+      <div class="school-list" id="school-list"></div>
+    </div>
+
+    <div class="footer-area">
+      <button class="primary-btn" id="next-btn" disabled>다음</button>
+      <button class="skip-link" id="skip-btn">나중에 할게요</button>
+    </div>
+  </div>
+   <script type="module">
+    import { searchSchools, getSchoolSchedule } from "./js/neisApi.js";
+
+    const searchInput = document.getElementById("school-search-input");
+    const listEl = document.getElementById("school-list");
+    const nextBtn = document.getElementById("next-btn");
+    const skipBtn = document.getElementById("skip-btn");
+
+    let selectedSchool = null;
+    let debounceTimer = null;
+
+    function renderSchoolList(schools) {
+      listEl.innerHTML = "";
+
+      if (schools.length === 0) {
+        return;
+      }
+
+      schools.forEach((school) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "school-list-item";
+        if (selectedSchool && selectedSchool.code === school.code) {
+          item.classList.add("selected");
+        }
+        item.innerHTML = `<span>${school.name}</span><span class="chevron">›</span>`;
+        item.addEventListener("click", () => {
+          selectedSchool = school;
+          nextBtn.disabled = false;
+          renderSchoolList(schools);
+        });
+        listEl.appendChild(item);
+      });
+    }
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      const keyword = searchInput.value.trim();
+      selectedSchool = null;
+      nextBtn.disabled = true;
+
+      if (!keyword) {
+        listEl.innerHTML = "";
+        return;
+      }
+      
+      debounceTimer = setTimeout(async () => {
+        try {
+          const schools = await searchSchools(keyword);
+          if (schools.length === 0) {
+            listEl.innerHTML = '<div class="school-empty-msg">검색 결과가 없어요</div>';
+            return;
+          }
+          renderSchoolList(schools);
+        } catch (err) {
+          listEl.innerHTML = '<div class="school-empty-msg">학교 검색 중 오류가 발생했어요</div>';
+        }
+      }, 300);
+    });
+
+    function formatYmd(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}`;
+    }
+
+    nextBtn.addEventListener("click", async () => {
+      if (!selectedSchool) return;
+
+      nextBtn.disabled = true;
+      nextBtn.textContent = "학사일정 불러오는 중...";
+
+      
+      sessionStorage.setItem("selectedSchool", JSON.stringify(selectedSchool));
+
+      const today = new Date();
+      const toDate = new Date(today);
+      toDate.setDate(toDate.getDate() + 180);
+
+      try {
+        const schedule = await getSchoolSchedule(
+          selectedSchool.officeCode,
+          selectedSchool.code,
+          formatYmd(today),
+          formatYmd(toDate),
+        );
+        // 학사일정(시험기간, 방학 등)을 캘린더 일정 형식으로 변환
+        // 색상은 그룹 연동 전까지 내 임시 기본색으로 표시됨
+        const schoolEvents = schedule.map((item) => ({
+          date: `${item.date.slice(0, 4)}-${item.date.slice(4, 6)}-${item.date.slice(6, 8)}`,
+          time: null,
+          title: item.eventName,
+          color: "red",
+        }));
+        sessionStorage.setItem("schoolEvents", JSON.stringify(schoolEvents));
+      } catch (err) {
+        // 학사일정을 못 불러와도 학교 등록 자체는 계속 진행됨
+      }
+
+      window.location.href = "calendar.html";
+    });
+
+    skipBtn.addEventListener("click", () => {
+      window.location.href = "calendar.html";
+    });
+  </script>
+
+</body>
+
+</html>
