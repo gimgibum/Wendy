@@ -34,6 +34,9 @@
   </div>
    <script type="module">
     import { searchSchools, getSchoolSchedule } from "./js/neisApi.js";
+    import { requireLogin } from "./js/auth.js";
+
+    requireLogin();
 
     const searchInput = document.getElementById("school-search-input");
     const listEl = document.getElementById("school-list");

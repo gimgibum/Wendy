@@ -3,27 +3,9 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Wendy - 약속 조율 캘린더</title>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- 2. 본인의 메인 JS 파일 불러오기 (type="module" 필수) -->
-    <script type="module" src="js/app.js"></script>
-</head>
-
-<body>
-    <!-- 화면 구성 요소들 -->
-</body>
-
-</html>
-
-<!DOCTYPE html>
-<html lang="ko">
-
-<head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wendy - 로그인</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -86,7 +68,11 @@
             margin: -4px 0 12px 2px;
             min-height: 14px;
         }
-        
+
+        .error-msg.success {
+            color: #3348FF;
+        }
+
         .submit-btn {
             width: 100%;
             padding: 12px;
@@ -173,8 +159,12 @@
 
     </div>
     <script type="module">
-      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-      const supabase = createClient('https://xyz.supabase.co', 'public-anon-key');
+      import { signIn, signUp, getCurrentUser } from './js/auth.js';
+
+      // 1. 이미 로그인되어 있으면 바로 캘린더로 이동
+      if (getCurrentUser()) {
+        window.location.replace('calendar.html');
+      }
 
       const loginForm = document.getElementById('login-form');
       const signupForm = document.getElementById('signup-form');
@@ -188,11 +178,19 @@
       const loginError = document.getElementById('login-error');
       const signupError = document.getElementById('signup-error');
 
+      // 회원가입 직후 첫 로그인인지 확인용 (첫 로그인이면 학교 등록 화면으로 보냄)
+      const NEW_USER_KEY = 'wendy_new_user';
+
+      function showLoginMessage(text, isSuccess = false) {
+        loginError.textContent = text;
+        loginError.classList.toggle('success', isSuccess);
+      }
+
       // 2. [화면 전환] 회원가입 버튼 클릭했을 때
       goSignupBtn.addEventListener('click', () => {
         loginForm.classList.add('hidden');
         signupForm.classList.remove('hidden');
-        loginError.textContent = ''; // 에러 메시지 초기화
+        showLoginMessage(''); // 에러 메시지 초기화
       });
 
       // 3. [화면 전환] "로그인" 버튼 클릭했을 때
@@ -203,21 +201,36 @@
       });
 
       // 4. [기능] 로그인 버튼 클릭 이벤트
-      loginBtn.addEventListener('click', () => {
+      loginBtn.addEventListener('click', async () => {
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value;
 
         if (!username || !password) {
-          loginError.textContent = '아이디와 비밀번호를 모두 입력해주세요';
+          showLoginMessage('아이디와 비밀번호를 모두 입력해주세요');
           return;
         }
 
-        // 로그인 성공 -> 메인 페이지로 이동
-        window.location.href = 'calendar.html';
+        loginBtn.disabled = true;
+        showLoginMessage('');
+        try {
+          await signIn(username, password);
+        } catch (err) {
+          showLoginMessage(err.message);
+          loginBtn.disabled = false;
+          return;
+        }
+
+        // 로그인 성공 -> 회원가입 후 첫 로그인이면 학교 등록, 아니면 메인 페이지로 이동
+        if (sessionStorage.getItem(NEW_USER_KEY) === username) {
+          sessionStorage.removeItem(NEW_USER_KEY);
+          window.location.href = 'onboarding.html';
+        } else {
+          window.location.href = 'calendar.html';
+        }
       });
 
       // 5. [기능] 회원가입 버튼 클릭 이벤트
-      signupBtn.addEventListener('click', () => {
+      signupBtn.addEventListener('click', async () => {
         const username = document.getElementById('signup-username').value.trim();
         const password = document.getElementById('signup-password').value;
         const passwordConfirm = document.getElementById('signup-password-confirm').value;
@@ -235,8 +248,30 @@
           return;
         }
 
-        // 회원가입 성공 -> 온보딩 페이지로 이동
-        window.location.href = 'onboarding.html';
+        signupBtn.disabled = true;
+        signupError.textContent = '';
+        try {
+          await signUp(username, password);
+        } catch (err) {
+          signupError.textContent = err.message;
+          signupBtn.disabled = false;
+          return;
+        }
+
+        // 회원가입 성공 -> 로그인 화면으로 돌아가서 직접 로그인
+        sessionStorage.setItem(NEW_USER_KEY, username);
+
+        document.getElementById('signup-username').value = '';
+        document.getElementById('signup-password').value = '';
+        document.getElementById('signup-password-confirm').value = '';
+        signupBtn.disabled = false;
+
+        signupForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        document.getElementById('login-username').value = username;
+        document.getElementById('login-password').value = '';
+        document.getElementById('login-password').focus();
+        showLoginMessage('회원가입이 완료됐어요. 로그인해주세요', true);
       });
     </script>
 
