@@ -94,3 +94,12 @@
   font-size: 13px;
   color: #1c1c1e;
 }
+
+.logout-btn {
+  margin-right: auto;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #8a8a8e;
+  cursor: pointer;
+}
