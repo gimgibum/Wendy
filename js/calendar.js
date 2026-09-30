@@ -11,7 +11,7 @@ export function getColorClass(color) {
   return COLOR_CLASS[color] || "color-red";
 }
 
-function toDateKey(year, month, day) {
+export function toDateKey(year, month, day) {
   const mm = String(month + 1).padStart(2, "0");
   const dd = String(day).padStart(2, "0");
   return `${year}-${mm}-${dd}`;

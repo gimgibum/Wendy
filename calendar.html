@@ -70,18 +70,21 @@
 
   </div>
  <script type="module">
-    import { renderCalendar, getColorClass } from "./js/calendar.js";
+    import { renderCalendar, getColorClass, toDateKey } from "./js/calendar.js";
     import { requireLogin, signOut } from "./js/auth.js";
+    import { getMyEvents, createEvent } from "./js/db.js";
 
-    requireLogin();
+    const user = requireLogin();
 
     // 그룹 참여자 목록 (그룹에 가입하기 전까지는 비어있음)
     const members = [];
     // 로그인한 나 자신의 색상 (그룹 가입 전 임시 기본값)
     const currentMember = { id: "me", name: "나", color: "red" };
 
-    // 그룹 일정 목록 (학교 등록 후 학사일정이 자동으로 채워짐)
-    let events = loadSchoolEvents();
+    // 학사일정 (학교 등록 후 자동으로 채워짐)
+    const schoolEvents = loadSchoolEvents();
+    // DB 에 저장된 내 일정
+    let myEvents = [];
 
     // 온보딩에서 불러온 학사일정 (sessionStorage 에 저장되어 있음)
     function loadSchoolEvents() {
@@ -89,6 +92,26 @@
         return JSON.parse(sessionStorage.getItem("schoolEvents")) || [];
       } catch {
         return [];
+      }
+    }
+
+    // DB 에서 받은 일정을 캘린더 표시 형식으로 변환 (시간은 'HH:MM:SS' → 'HH:MM')
+    function toCalendarEvent(row) {
+      return {
+        ...row,
+        time: row.time ? row.time.slice(0, 5) : null,
+        color: currentMember.color,
+      };
+    }
+
+    async function loadMyEvents() {
+      try {
+        const rows = await getMyEvents();
+        myEvents = rows.map(toCalendarEvent);
+        drawCalendar();
+      } catch (err) {
+        // 28000 = 로그인 만료 → 이미 로그인 화면으로 이동 중
+        if (err.code !== "28000") alert("일정을 불러오지 못했어요. 새로고침해주세요");
       }
     }
 
@@ -111,13 +134,16 @@
       });
     }
     function drawCalendar() {
+      const events = [...schoolEvents, ...myEvents];
       renderCalendar(grid, currentYear, currentMonth, events, (dateKey) => {
         openAddEventView(dateKey);
       });
     }
 
     function openAddEventView(dateKey) {
-      const dateToUse = dateKey || new Date().toISOString().slice(0, 10);
+      // toISOString 은 UTC 기준이라 한국 시간 오전 9시 전에는 어제 날짜가 됨 → 로컬 날짜 사용
+      const now = new Date();
+      const dateToUse = dateKey || toDateKey(now.getFullYear(), now.getMonth(), now.getDate());
       document.getElementById("event-date").value = dateToUse;
       document.getElementById("event-time").value = "";
       document.getElementById("event-title").value = "";
@@ -142,30 +168,44 @@
 
     document.getElementById("back-btn").addEventListener("click", closeAddEventView);
 
-    document.getElementById("logout-btn").addEventListener("click", () => {
-      signOut();
-      // 다음에 로그인하는 사람에게 이전 사람의 학교 일정이 보이지 않도록 정리
-      sessionStorage.removeItem("selectedSchool");
-      sessionStorage.removeItem("schoolEvents");
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      await signOut();
       window.location.href = "index.html";
     });
 
-    document.getElementById("save-event-btn").addEventListener("click", () => {
+    const saveEventBtn = document.getElementById("save-event-btn");
+    saveEventBtn.addEventListener("click", async () => {
       const date = document.getElementById("event-date").value;
       const time = document.getElementById("event-time").value;
       const title = document.getElementById("event-title").value.trim();
+      const memo = document.getElementById("event-memo").value.trim();
 
       if (!date || !title) {
         alert("날짜와 제목을 입력해주세요");
         return;
       }
-      events.push({ date, time, title, color: currentMember.color });
-      drawCalendar();
-      closeAddEventView();
+
+      saveEventBtn.disabled = true;
+      try {
+        const saved = await createEvent({
+          title,
+          date,
+          time: time || null,
+          memo: memo || null,
+        });
+        myEvents.push(toCalendarEvent(saved));
+        drawCalendar();
+        closeAddEventView();
+      } catch (err) {
+        if (err.code !== "28000") alert("일정을 저장하지 못했어요. 다시 시도해주세요");
+      } finally {
+        saveEventBtn.disabled = false;
+      }
     });
 
     drawLegend();
     drawCalendar();
+    if (user) loadMyEvents();
   </script>
 
 </body>

@@ -1,5 +1,6 @@
 //Supabase Database CRUD (groups, members, events)
 import { supabase } from "./config.js";
+import { getSessionToken, signOut } from "./auth.js";
 
 // GROUP(그룹)
 /**
@@ -98,78 +99,68 @@ export async function updateMemberSchoolInfo(memberId, schoolCode, officeCode) {
   return data;
 }
 
-// 3. EVENTS (개인 일정 CRUD)
+// 3. EVENTS (내 일정 CRUD) — supabase/events.sql 의 함수 사용
+// 테이블에 직접 접근할 수 없고, 세션 토큰을 함께 보내서 DB 함수가 본인 일정만 다루도록 함
 
 /**
- * 특정 그룹의 모든 개인 일정을 가져옵니다.
+ * 세션 토큰을 붙여서 DB 함수(RPC) 호출
+ * 토큰이 만료됐거나 잘못됐으면(28000) 로그아웃하고 로그인 화면으로 보냄
  */
-export async function getGroupEvents(groupId) {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .eq("group_id", groupId)
-    .order("date", { ascending: true });
+async function rpcWithSession(fn, params = {}) {
+  const { data, error } = await supabase.rpc(fn, {
+    p_token: getSessionToken(),
+    ...params,
+  });
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === "28000") {
+      await signOut();
+      window.location.replace("index.html");
+    }
+    throw error;
+  }
   return data;
 }
 
 /**
- * 신규 일정을 등록
+ * 내 일정 전체 조회 (날짜, 시간 순)
+ * @returns {Promise<Array>} [{ id, title, date: 'YYYY-MM-DD', time: 'HH:MM:SS' | null, memo, ... }]
  */
-export async function createEvent({
-  groupId,
-  memberId,
-  title,
-  date,
-  time = null,
-  memo = null,
-}) {
-  const { data, error } = await supabase
-    .from("events")
-    .insert([
-      {
-        group_id: groupId,
-        member_id: memberId,
-        title: title,
-        date: date,
-        time: time,
-        memo: memo,
-      },
-    ])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+export async function getMyEvents() {
+  return rpcWithSession("get_my_events");
 }
 
 /**
- * 기존 일정을 수정
+ * 새 일정 등록
+ * @returns {Promise<Object>} 저장된 일정
  */
-export async function updateEvent(eventId, { title, date, time, memo }) {
-  const { data, error } = await supabase
-    .from("events")
-    .update({
-      title,
-      date,
-      time,
-      memo,
-    })
-    .eq("id", eventId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+export async function createEvent({ title, date, time = null, memo = null }) {
+  return rpcWithSession("create_event", {
+    p_title: title,
+    p_date: date,
+    p_time: time,
+    p_memo: memo,
+  });
 }
 
 /**
- * 일정 삭제
+ * 내 일정 수정
+ * @returns {Promise<Object>} 수정된 일정
+ */
+export async function updateEvent(eventId, { title, date, time = null, memo = null }) {
+  return rpcWithSession("update_event", {
+    p_event_id: eventId,
+    p_title: title,
+    p_date: date,
+    p_time: time,
+    p_memo: memo,
+  });
+}
+
+/**
+ * 내 일정 삭제
  */
 export async function deleteEvent(eventId) {
-  const { error } = await supabase.from("events").delete().eq("id", eventId);
-
-  if (error) throw error;
+  await rpcWithSession("delete_event", { p_event_id: eventId });
   return true;
 }
