@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wendy - 캘린더</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/calendar.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <div class="screen calendar-app">
+
+    <!-- 캘린더 화면 -->
+    <div id="calendar-view">
+      <div class="calendar-toolbar">
+        <button class="menu-btn" id="menu-btn" aria-label="메뉴">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 6H17M3 10H17M3 14H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="nav-btn" id="prev-month-btn" aria-label="이전 달">←</button>
+        <h2 id="month-title"></h2>
+        <button class="nav-btn" id="next-month-btn" aria-label="다음 달">→</button>
+        <button class="today-btn" id="today-btn">오늘</button>
+      </div>
+
+      <div class="active-group-label" id="active-group-label"></div>
+
+      <div class="calendar-empty-state hidden" id="calendar-empty-state">
+        아직 참여한 그룹이 없어요. 메뉴에서 그룹을 만들거나 참여해보세요.
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+
+      <div class="legend" id="legend"></div>
+
+      <div class="calendar-footer">
+        <button class="secondary-btn" id="add-event-btn">일정 추가</button>
+      </div>
+    </div>
+
+    <!-- 일정 추가 화면 -->
+    <div id="add-event-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="back-btn" aria-label="뒤로가기">←</button>
+            <h1>일정 추가</h1>
+          </div>
+          <div class="field-group">
+            <div class="field-label">날짜</div>
+            <div class="field-box">
+              <span class="field-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M2 6.5H14" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M5 2V4.5M11 2V4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+              </span>
+              <input type="date" id="event-date" />
+            </div>
+            <div class="range-hint hidden" id="range-hint"></div>
+
+            <div class="field-label">시간</div>
+            <div class="field-box">
+              <span class="field-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M8 4.8V8L10.2 9.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <input type="time" id="event-time" placeholder="시간 선택 (선택)" />
+            </div>
+
+            <div class="field-label">제목</div>
+            <div class="field-box">
+              <input type="text" id="event-title" placeholder="예: 저녁 약속" />
+            </div>
+
+            <div class="field-label">메모 (선택)</div>
+            <div class="field-box">
+              <textarea id="event-memo" rows="1" placeholder="장소 등 자유롭게"></textarea>
+            </div>
+
+            <div class="field-label">캘린더</div>
+            <div class="calendar-target-list" id="calendar-target-list"></div>
+            <div class="color-display hidden" id="editing-target-display">
+              <span class="legend-dot" id="my-color-dot"></span>
+              <span id="my-color-name"></span>
+            </div>
+
+            <div class="field-group hidden" id="event-color-group">
+              <div class="field-label">일정 색상</div>
+              <div class="group-color-row" id="event-color-row">
+                <button type="button" class="group-color-dot color-red" data-color="red" aria-label="빨강"></button>
+                <button type="button" class="group-color-dot color-orange" data-color="orange" aria-label="주황"></button>
+                <button type="button" class="group-color-dot color-yellow" data-color="yellow" aria-label="노랑"></button>
+                <button type="button" class="group-color-dot color-green" data-color="green" aria-label="초록"></button>
+                <button type="button" class="group-color-dot color-teal" data-color="teal" aria-label="청록"></button>
+                <button type="button" class="group-color-dot color-blue" data-color="blue" aria-label="파랑"></button>
+                <button type="button" class="group-color-dot color-purple" data-color="purple" aria-label="보라"></button>
+                <button type="button" class="group-color-dot color-pink" data-color="pink" aria-label="분홍"></button>
+                <button type="button" class="group-color-dot color-brown" data-color="brown" aria-label="갈색"></button>
+                <button type="button" class="group-color-dot color-gray selected" data-color="gray" aria-label="회색"></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer-area">
+            <button class="primary-btn" id="save-event-btn">저장하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 일정 보기 화면 -->
+    <div id="day-detail-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="detail-back-btn" aria-label="뒤로가기">←</button>
+            <h1 id="detail-date-title"></h1>
+          </div>
+          <div class="event-detail-list" id="event-detail-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 그룹 추가 화면 -->
+    <div id="group-add-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="group-add-back-btn" aria-label="뒤로가기">←</button>
+            <h1>그룹 추가</h1>
+          </div>
+
+          <div class="group-tab-row">
+            <button type="button" class="group-tab-btn active" id="group-tab-create">그룹 만들기</button>
+            <button type="button" class="group-tab-btn" id="group-tab-join">그룹 참여하기</button>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">닉네임</div>
+            <div class="field-box">
+              <input type="text" id="group-nickname-input" placeholder="이 그룹에서 사용할 이름" />
+            </div>
+
+            <div class="field-label">내 색상</div>
+            <div class="group-color-row" id="group-color-row">
+              <button type="button" class="group-color-dot color-red selected" data-color="red" aria-label="빨강"></button>
+              <button type="button" class="group-color-dot color-orange" data-color="orange" aria-label="주황"></button>
+              <button type="button" class="group-color-dot color-yellow" data-color="yellow" aria-label="노랑"></button>
+              <button type="button" class="group-color-dot color-green" data-color="green" aria-label="초록"></button>
+              <button type="button" class="group-color-dot color-teal" data-color="teal" aria-label="청록"></button>
+              <button type="button" class="group-color-dot color-blue" data-color="blue" aria-label="파랑"></button>
+              <button type="button" class="group-color-dot color-purple" data-color="purple" aria-label="보라"></button>
+              <button type="button" class="group-color-dot color-pink" data-color="pink" aria-label="분홍"></button>
+              <button type="button" class="group-color-dot color-brown" data-color="brown" aria-label="갈색"></button>
+              <button type="button" class="group-color-dot color-gray" data-color="gray" aria-label="회색"></button>
+            </div>
+            <div class="color-taken-hint hidden" id="color-taken-hint">이미 이 그룹의 다른 멤버가 쓰고 있는 색상은 선택할 수 없어요</div>
+          </div>
+
+          <div class="field-group" id="group-create-fields">
+            <div class="field-label">그룹 이름</div>
+            <div class="field-box">
+              <input type="text" id="group-name-input" placeholder="예: 1학년 3반" />
+            </div>
+          </div>
+
+          <div class="field-group hidden" id="group-join-fields">
+            <div class="field-label">초대 코드</div>
+            <div class="field-box">
+              <input type="text" id="group-code-input" placeholder="코드를 입력하세요" />
+            </div>
+          </div>
+
+          <div class="footer-area">
+            <button class="primary-btn" id="group-submit-btn">그룹 만들기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 메뉴 -->
+    <div class="menu-overlay hidden" id="menu-overlay"></div>
+    <nav class="menu-drawer hidden" id="menu-drawer">
+      <button class="menu-item" id="menu-home-btn">홈</button>
+      <div class="menu-divider"></div>
+      <div class="menu-section">
+        <div class="menu-section-title">참여 중인 그룹</div>
+        <div class="menu-empty" id="menu-group-list">참여 중인 그룹이 없어요</div>
+      </div>
+      <div class="menu-divider"></div>
+      <button class="menu-item" id="menu-add-group-btn">+ 그룹 추가 (생성/참여)</button>
+      <div class="menu-divider"></div>
+      <button class="menu-logout-btn" id="menu-logout-btn">로그아웃</button>
+    </nav>
+
+  </div>
+ <script type="module">
+    import { renderCalendar, getColorClass } from "./js/calendar.js";
+    import { signOut, getCurrentUser } from "./js/auth.js";
+    import {
+      createGroup,
+      findGroupIdByCode,
+      getMyGroups,
+      leaveGroup as dbLeaveGroup,
+      deleteGroup as dbDeleteGroup,
+      joinGroupMember,
+      getGroupMembers,
+      getGroupUsedColors,
+      getGroupEvents,
+      createEvent as dbCreateEvent,
+      updateEvent as dbUpdateEvent,
+      deleteEvent as dbDeleteEvent,
+      getPersonalEvents,
+      createPersonalEvent as dbCreatePersonalEvent,
+      updatePersonalEvent as dbUpdatePersonalEvent,
+      deletePersonalEvent as dbDeletePersonalEvent,
+      updateMemberName as dbUpdateMemberName,
+    } from "./js/db.js";
+
+    let currentUser = null;
+
+    // 지금 보고 있는 캘린더가 "personal"(개인 캘린더 = 홈)인지 "group"(그룹 공유 캘린더)인지
+    let viewMode = "personal";
+    // 내가 참여 중인 그룹 목록 (각 항목: {memberId, nickname, color, groupId, groupName, groupCode, isOwner})
+    let myGroups = [];
+    // viewMode가 "group"일 때, 지금 캘린더에 보여주고 있는 그룹 (myGroups 중 하나)
+    let activeGroup = null;
+    // 활성 그룹의 멤버 목록 (참여자 표시용, 개인 캘린더에서는 항상 빈 배열)
+    let groupMembers = [];
+    // 현재 보여주고 있는 캘린더(개인 또는 그룹)의 일정 목록 (렌더링용으로 가공된 형태)
+    let events = [];
+
+    const calendarView = document.getElementById("calendar-view");
+    const addEventView = document.getElementById("add-event-view");
+    const dayDetailView = document.getElementById("day-detail-view");
+    const groupAddView = document.getElementById("group-add-view");
+    const grid = document.getElementById("calendar-grid");
+    const legend = document.getElementById("legend");
+    const monthTitle = document.getElementById("month-title");
+    const detailDateTitle = document.getElementById("detail-date-title");
+    const eventDetailList = document.getElementById("event-detail-list");
+    const menuGroupList = document.getElementById("menu-group-list");
+    const menuHomeBtn = document.getElementById("menu-home-btn");
+    const activeGroupLabel = document.getElementById("active-group-label");
+    const calendarEmptyState = document.getElementById("calendar-empty-state");
+    const addEventBtn = document.getElementById("add-event-btn");
+    const calendarTargetList = document.getElementById("calendar-target-list");
+    const editingTargetDisplay = document.getElementById("editing-target-display");
+    const eventColorGroup = document.getElementById("event-color-group");
+    const eventColorRow = document.getElementById("event-color-row");
+    let selectedEventColor = "gray";
+
+    const today = new Date();
+    let viewYear = today.getFullYear();
+    let viewMonth = today.getMonth();
+
+    // 일정 추가 화면에서 저장/뒤로가기 후 돌아갈 화면, 그리고 수정 중인 일정 id/출처("personal" 또는 "group")
+    let returnView = "calendar";
+    let editingEventId = null;
+    let editingEventSource = null;
+    let activeDateKey = null;
+    // 캘린더에서 드래그로 여러 날짜를 선택했을 때의 범위 (일정 추가 화면이 range 모드로 열림)
+    let rangeStartDate = null;
+    let rangeEndDate = null;
+    const MAX_RANGE_DAYS = 31;
+
+    function dateRangeArray(fromKey, toKey) {
+      const dates = [];
+      let cursor = new Date(`${fromKey}T00:00:00`);
+      const end = new Date(`${toKey}T00:00:00`);
+      while (cursor <= end) {
+        const yyyy = cursor.getFullYear();
+        const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+        const dd = String(cursor.getDate()).padStart(2, "0");
+        dates.push(`${yyyy}-${mm}-${dd}`);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function showView(view) {
+      calendarView.classList.toggle("hidden", view !== "calendar");
+      addEventView.classList.toggle("hidden", view !== "add-event");
+      dayDetailView.classList.toggle("hidden", view !== "day-detail");
+      groupAddView.classList.toggle("hidden", view !== "group-add");
+    }
+
+    function updateEmptyState() {
+      const isPersonal = viewMode === "personal";
+      activeGroupLabel.textContent = isPersonal ? "개인 캘린더" : (activeGroup ? activeGroup.groupName : "");
+      legend.classList.toggle("hidden", isPersonal || groupMembers.length === 0);
+      calendarEmptyState.classList.toggle("hidden", !(isPersonal && myGroups.length === 0));
+    }
+
+    function drawLegend() {
+      legend.innerHTML = "";
+      groupMembers.forEach((member) => {
+        const item = document.createElement("div");
+        item.className = "legend-item";
+        item.innerHTML = `<span class="legend-dot ${getColorClass(member.color)}"></span><span>${member.name}</span>`;
+        if (activeGroup && member.id === activeGroup.memberId) {
+          item.classList.add("legend-item-me");
+          item.title = "더블클릭하면 닉네임을 수정할 수 있어요";
+          item.addEventListener("dblclick", () => handleEditNickname(activeGroup));
+        }
+        legend.appendChild(item);
+      });
+    }
+
+    function renderGroupMenu() {
+      menuHomeBtn.classList.toggle("active", viewMode === "personal");
+
+      if (myGroups.length === 0) {
+        menuGroupList.innerHTML = '<div class="menu-empty">참여 중인 그룹이 없어요</div>';
+        return;
+      }
+      menuGroupList.innerHTML = "";
+      myGroups.forEach((group) => {
+        const item = document.createElement("div");
+        item.className = "menu-group-item";
+        if (viewMode === "group" && activeGroup && activeGroup.groupId === group.groupId) {
+          item.classList.add("active");
+        }
+
+        const info = document.createElement("div");
+        info.className = "menu-group-info";
+        info.innerHTML = `<span class="legend-dot ${getColorClass(group.color)}"></span><span>${group.groupName}</span><span class="menu-group-code">${group.groupCode}</span>`;
+        info.addEventListener("click", () => {
+          closeMenu();
+          switchActiveGroup(group.groupId);
+        });
+        item.appendChild(info);
+
+        if (group.isOwner) {
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "menu-group-leave-btn menu-group-delete-btn";
+          deleteBtn.textContent = "삭제";
+          deleteBtn.addEventListener("click", () => handleDeleteGroup(group));
+          item.appendChild(deleteBtn);
+        } else {
+          const leaveBtn = document.createElement("button");
+          leaveBtn.type = "button";
+          leaveBtn.className = "menu-group-leave-btn";
+          leaveBtn.textContent = "나가기";
+          leaveBtn.addEventListener("click", () => handleLeaveGroup(group));
+          item.appendChild(leaveBtn);
+        }
+
+        menuGroupList.appendChild(item);
+      });
+    }
+
+    async function loadMyGroups() {
+      myGroups = await getMyGroups();
+      if (viewMode === "group") {
+        if (!activeGroup || !myGroups.some((g) => g.groupId === activeGroup.groupId)) {
+          // 보고 있던 그룹에서 나갔거나 삭제됨 -> 홈(개인 캘린더)으로 되돌아감
+          viewMode = "personal";
+          activeGroup = null;
+        } else {
+          activeGroup = myGroups.find((g) => g.groupId === activeGroup.groupId);
+        }
+      }
+      renderGroupMenu();
+    }
+
+    async function loadCalendarData() {
+      if (viewMode === "personal") {
+        groupMembers = [];
+        const eventsData = await getPersonalEvents(currentUser.id);
+        events = eventsData.map((event) => ({
+          id: event.id,
+          date: event.date,
+          time: event.time ? event.time.slice(0, 5) : "",
+          title: event.title,
+          memo: event.memo || "",
+          color: event.color || "gray",
+          isMine: true,
+          source: "personal",
+        }));
+      } else {
+        const [membersData, eventsData] = await Promise.all([
+          getGroupMembers(activeGroup.groupId),
+          getGroupEvents(activeGroup.groupId),
+        ]);
+        groupMembers = membersData;
+        events = eventsData.map((event) => ({
+          id: event.id,
+          date: event.date,
+          time: event.time ? event.time.slice(0, 5) : "",
+          title: event.title,
+          memo: event.memo || "",
+          color: (groupMembers.find((m) => m.id === event.member_id) || {}).color || "red",
+          isMine: event.member_id === activeGroup.memberId,
+          source: "group",
+        }));
+      }
+      drawLegend();
+      drawCalendar();
+      updateEmptyState();
+    }
+
+    async function switchActiveGroup(groupId) {
+      const found = myGroups.find((g) => g.groupId === groupId);
+      if (!found) return;
+      viewMode = "group";
+      activeGroup = found;
+      renderGroupMenu();
+      await loadCalendarData();
+    }
+
+    async function handleEditNickname(group) {
+      const newName = prompt(`"${group.groupName}"에서 사용할 닉네임을 입력해주세요`, group.nickname);
+      if (newName === null) return;
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === group.nickname) return;
+      try {
+        await dbUpdateMemberName(group.memberId, trimmed);
+        await loadMyGroups();
+        if (viewMode === "group" && activeGroup && activeGroup.groupId === group.groupId) {
+          await loadCalendarData();
+        }
+      } catch (err) {
+        alert(err.message || "닉네임 수정 중 오류가 발생했어요");
+      }
+    }
+
+    async function handleLeaveGroup(group) {
+      if (!confirm(`"${group.groupName}" 그룹에서 나가시겠어요?`)) return;
+      try {
+        await dbLeaveGroup(group.memberId);
+        await loadMyGroups();
+        await loadCalendarData();
+      } catch (err) {
+        alert(err.message || "나가기 중 오류가 발생했어요");
+      }
+    }
+
+    async function handleDeleteGroup(group) {
+      if (!confirm(`"${group.groupName}" 그룹을 삭제하시겠어요?\n삭제하면 되돌릴 수 없고, 초대 코드도 더 이상 사용할 수 없어요.`)) return;
+      try {
+        await dbDeleteGroup(group.groupId);
+        await loadMyGroups();
+        await loadCalendarData();
+      } catch (err) {
+        alert(err.message || "삭제 중 오류가 발생했어요");
+      }
+    }
+
+    function drawCalendar() {
+      monthTitle.textContent = `${viewYear}년 ${viewMonth + 1}월`;
+      renderCalendar(
+        grid,
+        viewYear,
+        viewMonth,
+        events,
+        (dateKey) => {
+          // 한 번 클릭 -> 그 날짜의 일정 보기
+          openDayDetailView(dateKey);
+        },
+        (fromKey, toKey) => {
+          const days = dateRangeArray(fromKey, toKey);
+          if (days.length > MAX_RANGE_DAYS) {
+            alert(`한 번에 최대 ${MAX_RANGE_DAYS}일까지 선택할 수 있어요`);
+            return;
+          }
+          returnView = "calendar";
+          openAddEventView(fromKey, null, toKey);
+        },
+        (dateKey) => {
+          // 더블클릭 -> 그 날짜에 일정 추가
+          returnView = "calendar";
+          openAddEventView(dateKey);
+        },
+      );
+    }
+
+    document.getElementById("prev-month-btn").addEventListener("click", () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) {
+        viewMonth = 11;
+        viewYear -= 1;
+      }
+      drawCalendar();
+    });
+
+    document.getElementById("next-month-btn").addEventListener("click", () => {
+      viewMonth += 1;
+      if (viewMonth > 11) {
+        viewMonth = 0;
+        viewYear += 1;
+      }
+      drawCalendar();
+    });
+
+    document.getElementById("today-btn").addEventListener("click", () => {
+      const now = new Date();
+      viewYear = now.getFullYear();
+      viewMonth = now.getMonth();
+      drawCalendar();
+    });
+
+    function buildTargetRow({ value, label, colorClass, checked }) {
+      const row = document.createElement("label");
+      row.className = "calendar-target-item";
+      row.innerHTML = `<input type="checkbox" value="${value}" ${checked ? "checked" : ""}><span class="legend-dot ${colorClass}"></span><span>${label}</span>`;
+      return row;
+    }
+
+    function renderCalendarTargetOptions(preselect) {
+      calendarTargetList.innerHTML = "";
+      calendarTargetList.appendChild(
+        buildTargetRow({ value: "personal", label: "개인 캘린더", colorClass: "color-gray", checked: preselect === "personal" })
+      );
+      myGroups.forEach((group) => {
+        calendarTargetList.appendChild(
+          buildTargetRow({
+            value: group.groupId,
+            label: group.groupName,
+            colorClass: getColorClass(group.color),
+            checked: preselect === group.groupId,
+          })
+        );
+      });
+      updateEventColorVisibility();
+    }
+
+    function selectEventColor(color) {
+      selectedEventColor = color;
+      eventColorRow.querySelectorAll(".group-color-dot").forEach((dot) => {
+        dot.classList.toggle("selected", dot.dataset.color === color);
+      });
+    }
+
+    function updateEventColorVisibility() {
+      const personalCb = calendarTargetList.querySelector('input[value="personal"]');
+      eventColorGroup.classList.toggle("hidden", !personalCb || !personalCb.checked);
+    }
+
+    eventColorRow.addEventListener("click", (event) => {
+      const dotBtn = event.target.closest(".group-color-dot");
+      if (!dotBtn) return;
+      selectEventColor(dotBtn.dataset.color);
+    });
+
+    calendarTargetList.addEventListener("change", updateEventColorVisibility);
+
+    function openAddEventView(dateKey, eventToEdit, rangeEndKey) {
+      const dateToUse = dateKey || new Date().toISOString().slice(0, 10);
+      editingEventId = eventToEdit ? eventToEdit.id : null;
+      editingEventSource = eventToEdit ? eventToEdit.source : null;
+
+      const eventDateInput = document.getElementById("event-date");
+      const rangeHint = document.getElementById("range-hint");
+      if (!eventToEdit && rangeEndKey && rangeEndKey !== dateKey) {
+        rangeStartDate = dateKey;
+        rangeEndDate = rangeEndKey;
+        const days = dateRangeArray(dateKey, rangeEndKey).length;
+        eventDateInput.disabled = true;
+        rangeHint.textContent = `${dateKey} ~ ${rangeEndKey} (${days}일간) 매일 같은 일정이 등록돼요`;
+        rangeHint.classList.remove("hidden");
+      } else {
+        rangeStartDate = null;
+        rangeEndDate = null;
+        eventDateInput.disabled = false;
+        rangeHint.classList.add("hidden");
+      }
+
+      eventDateInput.value = dateToUse;
+      document.getElementById("event-time").value = eventToEdit ? eventToEdit.time || "" : "";
+      document.getElementById("event-title").value = eventToEdit ? eventToEdit.title : "";
+      document.getElementById("event-memo").value = eventToEdit ? eventToEdit.memo || "" : "";
+
+      if (eventToEdit) {
+        calendarTargetList.classList.add("hidden");
+        editingTargetDisplay.classList.remove("hidden");
+        const dot = document.getElementById("my-color-dot");
+        dot.className = `legend-dot ${getColorClass(eventToEdit.color)}`;
+        document.getElementById("my-color-name").textContent =
+          eventToEdit.source === "personal" ? "개인 캘린더" : activeGroup.groupName;
+
+        if (eventToEdit.source === "personal") {
+          // 개인 일정은 나 혼자만 쓰는 캘린더라, 색상을 일정마다 자유롭게 바꿀 수 있게 함
+          eventColorGroup.classList.remove("hidden");
+          selectEventColor(eventToEdit.color || "gray");
+        } else {
+          // 그룹 일정 색상은 멤버 색상으로 고정되므로 여기서는 바꿀 수 없음
+          eventColorGroup.classList.add("hidden");
+        }
+      } else {
+        editingTargetDisplay.classList.add("hidden");
+        calendarTargetList.classList.remove("hidden");
+        selectEventColor("gray");
+        renderCalendarTargetOptions(viewMode === "personal" ? "personal" : activeGroup.groupId);
+      }
+
+      document.querySelector("#add-event-view h1").textContent = eventToEdit ? "일정 수정" : "일정 추가";
+      document.getElementById("save-event-btn").textContent = eventToEdit ? "수정하기" : "저장하기";
+
+      showView("add-event");
+    }
+
+    function closeAddEventView() {
+      if (returnView === "day-detail" && activeDateKey) {
+        openDayDetailView(activeDateKey);
+      } else {
+        showView("calendar");
+      }
+    }
+
+    function openDayDetailView(dateKey) {
+      activeDateKey = dateKey;
+      const [y, m, d] = dateKey.split("-").map(Number);
+      detailDateTitle.textContent = `${m}월 ${d}일 일정`;
+
+      const dayEvents = events.filter((event) => event.date === dateKey);
+      eventDetailList.innerHTML = "";
+
+      if (dayEvents.length === 0) {
+        eventDetailList.innerHTML = '<div class="event-detail-empty">등록된 일정이 없어요</div>';
+      } else {
+        dayEvents.forEach((event) => {
+          const item = document.createElement("div");
+          item.className = "event-detail-item";
+
+          const info = document.createElement("div");
+          info.className = "event-detail-info";
+          info.innerHTML = `
+            <div class="event-detail-title">${event.title}${event.time ? ` <span class="event-detail-time">${event.time}</span>` : ""}</div>
+            ${event.memo ? `<div class="event-detail-memo">${event.memo}</div>` : ""}
+          `;
+
+          const dot = document.createElement("span");
+          dot.className = `legend-dot ${getColorClass(event.color)}`;
+
+          item.appendChild(dot);
+          item.appendChild(info);
+
+          if (event.isMine) {
+            const actions = document.createElement("div");
+            actions.className = "event-detail-actions";
+
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "event-action-btn";
+            editBtn.textContent = "수정";
+            editBtn.addEventListener("click", () => {
+              returnView = "day-detail";
+              openAddEventView(event.date, event);
+            });
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "event-action-btn danger";
+            deleteBtn.textContent = "삭제";
+            deleteBtn.addEventListener("click", () => handleDeleteEvent(event));
+
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+            item.appendChild(actions);
+          }
+
+          eventDetailList.appendChild(item);
+        });
+      }
+
+      showView("day-detail");
+    }
+
+    async function handleDeleteEvent(event) {
+      if (!confirm("이 일정을 삭제할까요?")) return;
+      try {
+        if (event.source === "personal") {
+          await dbDeletePersonalEvent(event.id);
+        } else {
+          await dbDeleteEvent(event.id);
+        }
+        await loadCalendarData();
+        openDayDetailView(activeDateKey);
+      } catch (err) {
+        alert(err.message || "삭제 중 오류가 발생했어요");
+      }
+    }
+
+    addEventBtn.addEventListener("click", () => {
+      returnView = "calendar";
+      openAddEventView();
+    });
+
+    document.getElementById("back-btn").addEventListener("click", closeAddEventView);
+
+    document.getElementById("detail-back-btn").addEventListener("click", () => {
+      showView("calendar");
+    });
+
+    document.getElementById("save-event-btn").addEventListener("click", async () => {
+      const date = document.getElementById("event-date").value;
+      const time = document.getElementById("event-time").value;
+      const title = document.getElementById("event-title").value.trim();
+      const memo = document.getElementById("event-memo").value.trim();
+
+      if (!date || !title) {
+        alert("날짜와 제목을 입력해주세요");
+        return;
+      }
+
+      const saveBtn = document.getElementById("save-event-btn");
+      saveBtn.disabled = true;
+      try {
+        if (editingEventId) {
+          if (editingEventSource === "personal") {
+            await dbUpdatePersonalEvent(editingEventId, {
+              title,
+              date,
+              time: time || null,
+              memo: memo || null,
+              color: selectedEventColor,
+            });
+          } else {
+            await dbUpdateEvent(editingEventId, { title, date, time: time || null, memo: memo || null });
+          }
+        } else {
+          const targets = Array.from(calendarTargetList.querySelectorAll("input[type=checkbox]:checked")).map(
+            (cb) => cb.value
+          );
+          if (targets.length === 0) {
+            alert("등록할 캘린더를 하나 이상 선택해주세요");
+            saveBtn.disabled = false;
+            return;
+          }
+          const dates = rangeStartDate && rangeEndDate ? dateRangeArray(rangeStartDate, rangeEndDate) : [date];
+          const creations = [];
+          dates.forEach((d) => {
+            targets.forEach((target) => {
+              if (target === "personal") {
+                creations.push(
+                  dbCreatePersonalEvent({
+                    userId: currentUser.id,
+                    title,
+                    date: d,
+                    time: time || null,
+                    memo: memo || null,
+                    color: selectedEventColor,
+                  })
+                );
+                return;
+              }
+              const group = myGroups.find((g) => g.groupId === target);
+              if (!group) return;
+              creations.push(
+                dbCreateEvent({
+                  groupId: group.groupId,
+                  memberId: group.memberId,
+                  title,
+                  date: d,
+                  time: time || null,
+                  memo: memo || null,
+                })
+              );
+            });
+          });
+          await Promise.all(creations);
+        }
+        await loadCalendarData();
+        closeAddEventView();
+      } catch (err) {
+        alert(err.message || "일정을 저장하는 중 오류가 발생했어요");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    const menuOverlay = document.getElementById("menu-overlay");
+    const menuDrawer = document.getElementById("menu-drawer");
+
+    function openMenu() {
+      menuOverlay.classList.remove("hidden");
+      menuDrawer.classList.remove("hidden");
+    }
+
+    function closeMenu() {
+      menuOverlay.classList.add("hidden");
+      menuDrawer.classList.add("hidden");
+    }
+
+    document.getElementById("menu-btn").addEventListener("click", openMenu);
+    menuOverlay.addEventListener("click", closeMenu);
+
+    menuHomeBtn.addEventListener("click", async () => {
+      closeMenu();
+      viewMode = "personal";
+      renderGroupMenu();
+      showView("calendar");
+      await loadCalendarData();
+    });
+
+    const groupTabCreate = document.getElementById("group-tab-create");
+    const groupTabJoin = document.getElementById("group-tab-join");
+    const groupCreateFields = document.getElementById("group-create-fields");
+    const groupJoinFields = document.getElementById("group-join-fields");
+    const groupSubmitBtn = document.getElementById("group-submit-btn");
+    const groupNameInput = document.getElementById("group-name-input");
+    const groupNicknameInput = document.getElementById("group-nickname-input");
+    const groupCodeInput = document.getElementById("group-code-input");
+    const groupColorRow = document.getElementById("group-color-row");
+    const colorTakenHint = document.getElementById("color-taken-hint");
+
+    let groupMode = "create";
+    let selectedGroupColor = "red";
+    let colorCheckTimer = null;
+
+    function applyTakenColors(taken) {
+      let selectedIsTaken = false;
+      const dots = Array.from(groupColorRow.querySelectorAll(".group-color-dot"));
+      dots.forEach((dot) => {
+        const isTaken = taken.includes(dot.dataset.color);
+        dot.classList.toggle("taken", isTaken);
+        dot.disabled = isTaken;
+        if (isTaken && dot.dataset.color === selectedGroupColor) {
+          selectedIsTaken = true;
+        }
+      });
+      colorTakenHint.classList.toggle("hidden", taken.length === 0);
+      if (selectedIsTaken) {
+        const nextDot = dots.find((dot) => !dot.classList.contains("taken"));
+        dots.forEach((dot) => dot.classList.remove("selected"));
+        if (nextDot) {
+          nextDot.classList.add("selected");
+          selectedGroupColor = nextDot.dataset.color;
+        }
+      }
+    }
+
+    function checkTakenColorsForCode(code) {
+      clearTimeout(colorCheckTimer);
+      if (!code) {
+        applyTakenColors([]);
+        return;
+      }
+      colorCheckTimer = setTimeout(async () => {
+        try {
+          const groupId = await findGroupIdByCode(code);
+          const used = await getGroupUsedColors(groupId);
+          applyTakenColors(used);
+        } catch (err) {
+          // 코드가 아직 유효하지 않으면(입력 중) 조용히 무시 - 제출 시 다시 검증됨
+          applyTakenColors([]);
+        }
+      }, 400);
+    }
+
+    function setGroupMode(mode) {
+      groupMode = mode;
+      groupTabCreate.classList.toggle("active", mode === "create");
+      groupTabJoin.classList.toggle("active", mode === "join");
+      groupCreateFields.classList.toggle("hidden", mode !== "create");
+      groupJoinFields.classList.toggle("hidden", mode !== "join");
+      groupSubmitBtn.textContent = mode === "create" ? "그룹 만들기" : "참여하기";
+      if (mode === "create") {
+        applyTakenColors([]);
+      } else {
+        checkTakenColorsForCode(groupCodeInput.value.trim().toUpperCase());
+      }
+    }
+
+    groupTabCreate.addEventListener("click", () => setGroupMode("create"));
+    groupTabJoin.addEventListener("click", () => setGroupMode("join"));
+
+    groupCodeInput.addEventListener("input", () => {
+      checkTakenColorsForCode(groupCodeInput.value.trim().toUpperCase());
+    });
+
+    groupColorRow.addEventListener("click", (event) => {
+      const dotBtn = event.target.closest(".group-color-dot");
+      if (!dotBtn || dotBtn.disabled) return;
+      selectedGroupColor = dotBtn.dataset.color;
+      groupColorRow.querySelectorAll(".group-color-dot").forEach((dot) => {
+        dot.classList.toggle("selected", dot === dotBtn);
+      });
+    });
+
+    function openGroupAddView() {
+      groupNameInput.value = "";
+      groupCodeInput.value = "";
+      groupNicknameInput.value = currentUser?.user_metadata?.username || "";
+      selectedGroupColor = "red";
+      groupColorRow.querySelectorAll(".group-color-dot").forEach((dot, index) => {
+        dot.classList.toggle("selected", index === 0);
+      });
+      setGroupMode("create");
+      showView("group-add");
+    }
+
+    document.getElementById("group-add-back-btn").addEventListener("click", () => {
+      showView("calendar");
+    });
+
+    groupSubmitBtn.addEventListener("click", async () => {
+      const nickname = groupNicknameInput.value.trim();
+      if (!nickname) {
+        alert("닉네임을 입력해주세요");
+        return;
+      }
+
+      groupSubmitBtn.disabled = true;
+      try {
+        if (groupMode === "create") {
+          const name = groupNameInput.value.trim();
+          if (!name) {
+            alert("그룹 이름을 입력해주세요");
+            return;
+          }
+          const group = await createGroup(name);
+          await joinGroupMember({
+            userId: currentUser.id,
+            groupId: group.id,
+            name: nickname,
+            color: selectedGroupColor,
+          });
+          await loadMyGroups();
+          await switchActiveGroup(group.id);
+          showView("calendar");
+          alert(`"${name}" 그룹이 생성됐어요!\n초대 코드: ${group.code}\n\n이 코드를 그룹원에게 공유해주세요. (메뉴의 참여 중인 그룹에서 코드를 다시 확인할 수 있어요)`);
+        } else {
+          const code = groupCodeInput.value.trim().toUpperCase();
+          if (!code) {
+            alert("초대 코드를 입력해주세요");
+            return;
+          }
+
+          let groupId;
+          try {
+            groupId = await findGroupIdByCode(code);
+          } catch (err) {
+            alert(err.message || "존재하지 않는 초대 코드예요. 코드를 다시 확인해주세요.");
+            return;
+          }
+
+          try {
+            await joinGroupMember({
+              userId: currentUser.id,
+              groupId,
+              name: nickname,
+              color: selectedGroupColor,
+            });
+          } catch (err) {
+            if (err.code === "23505" && err.message?.includes("color")) {
+              alert("방금 다른 사람이 그 색상을 먼저 선택했어요. 다른 색상을 골라주세요.");
+              checkTakenColorsForCode(code);
+            } else if (err.code === "23505") {
+              alert("이미 참여 중인 그룹입니다");
+            } else {
+              alert(err.message || "참여 중 오류가 발생했어요");
+            }
+            return;
+          }
+
+          await loadMyGroups();
+          await switchActiveGroup(groupId);
+          showView("calendar");
+        }
+      } catch (err) {
+        alert(err.message || "처리 중 오류가 발생했어요");
+      } finally {
+        groupSubmitBtn.disabled = false;
+      }
+    });
+
+    document.getElementById("menu-add-group-btn").addEventListener("click", () => {
+      closeMenu();
+      openGroupAddView();
+    });
+
+    document.getElementById("menu-logout-btn").addEventListener("click", async () => {
+      try {
+        await signOut();
+      } catch (err) {
+        // 세션 정리에 실패해도 로그인 화면으로는 보내준다
+      }
+      window.location.href = "index.html";
+    });
+
+    async function init() {
+      currentUser = await getCurrentUser();
+      if (!currentUser) {
+        window.location.href = "index.html";
+        return;
+      }
+      await loadMyGroups();
+      await loadCalendarData();
+    }
+
+    init();
+  </script>
+
+</body>
+
+</html>

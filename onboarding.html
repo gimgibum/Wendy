@@ -13,27 +13,37 @@
 <body>
 
   <div class="screen">
-    <div class="field-group">
-      <div style="text-align: center; margin: 40px 0 24px;">
-        <h1 style="font-size: 17px; font-weight: 600; margin-bottom: 6px;">학교를 등록해주세요</h1>
-        <p style="font-size: 12px; color: #8a8a8e;">등록하면 시험기간·방학이 자동으로 캘린더에 표시돼요</p>
+    <div class="onboarding-center">
+      <div class="onboarding-card">
+        <div class="field-group">
+          <div style="text-align: center; margin: 0 0 24px;">
+            <h1 style="font-size: 17px; font-weight: 600; margin-bottom: 6px;">학교를 등록해주세요</h1>
+            <p style="font-size: 12px; color: #8a8a8e;">등록하면 시험기간·방학이 자동으로 캘린더에 표시돼요</p>
+          </div>
+
+          <div class="school-search-box">
+            <span class="field-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6" />
+                <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+            </span>
+            <input type="text" id="school-search-input" placeholder="학교 이름을 검색하세요" />
+          </div>
+
+          <div class="school-list" id="school-list"></div>
+        </div>
+
+        <div class="footer-area">
+          <button class="primary-btn" id="next-btn" disabled>다음</button>
+          <button class="skip-link" id="skip-btn">나중에 할게요</button>
+        </div>
       </div>
-
-      <div class="school-search-box">
-        <span class="field-icon"></span>
-        <input type="text" id="school-search-input" placeholder="학교 이름을 검색하세요" />
-      </div>
-
-      <div class="school-list" id="school-list"></div>
-    </div>
-
-    <div class="footer-area">
-      <button class="primary-btn" id="next-btn" disabled>다음</button>
-      <button class="skip-link" id="skip-btn">나중에 할게요</button>
     </div>
   </div>
    <script type="module">
     import { searchSchools, getSchoolSchedule } from "./js/neisApi.js";
+    import { supabase } from "./js/config.js";
 
     const searchInput = document.getElementById("school-search-input");
     const listEl = document.getElementById("school-list");
@@ -105,8 +115,14 @@
       nextBtn.disabled = true;
       nextBtn.textContent = "학사일정 불러오는 중...";
 
-      
       sessionStorage.setItem("selectedSchool", JSON.stringify(selectedSchool));
+
+      try {
+        // 계정에 학교 정보를 저장해서, 다음 로그인부터는 이 화면을 건너뛰고 바로 캘린더로 가게 함
+        await supabase.auth.updateUser({ data: { school: selectedSchool } });
+      } catch (err) {
+        // 저장에 실패해도 온보딩 자체는 계속 진행 (다음 로그인 때 다시 물어보게 됨)
+      }
 
       const today = new Date();
       const toDate = new Date(today);

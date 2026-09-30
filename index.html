@@ -3,27 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Wendy - 약속 조율 캘린더</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wendy - 로그인</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- 2. 본인의 메인 JS 파일 불러오기 (type="module" 필수) -->
-    <script type="module" src="js/app.js"></script>
-</head>
-
-<body>
-    <!-- 화면 구성 요소들 -->
-</body>
-
-</html>
-
-<!DOCTYPE html>
-<html lang="ko">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wendy - 로그인</title>
     <style>
         * {
             box-sizing: border-box;
@@ -31,7 +15,7 @@
             padding: 0;
             font-family: -apple-system, "Malgun Gothic", sans-serif;
         }
-        
+
         body {
             background: #F5F5F7;
             min-height: 100vh;
@@ -39,7 +23,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .card {
             background: #ffffff;
             border-radius: 16px;
@@ -48,30 +32,30 @@
             width: 100%;
             margin: 16px;
         }
-        
+
         .title-area {
             text-align: center;
             margin-bottom: 26px;
         }
-        
+
         .title-area h1 {
             font-size: 17px;
             font-weight: 600;
             margin-bottom: 6px;
         }
-        
+
         .title-area p {
             font-size: 12px;
             color: #8A8A8E;
         }
-        
+
         .field {
             border: 1px solid #E5E5E7;
             border-radius: 8px;
             padding: 11px 12px;
             margin-bottom: 12px;
         }
-        
+
         .field input {
             border: none;
             outline: none;
@@ -79,14 +63,14 @@
             font-size: 13px;
             background: transparent;
         }
-        
+
         .error-msg {
             color: #D85A30;
             font-size: 12px;
             margin: -4px 0 12px 2px;
             min-height: 14px;
         }
-        
+
         .submit-btn {
             width: 100%;
             padding: 12px;
@@ -99,24 +83,24 @@
             cursor: pointer;
             margin-bottom: 14px;
         }
-        
+
         .submit-btn:disabled {
             background: #B7BEFF;
             cursor: not-allowed;
         }
-        
+
         .switch-text {
             text-align: center;
             font-size: 12px;
             color: #8A8A8E;
         }
-        
+
         .switch-text span {
             color: #3348FF;
             font-weight: 500;
             cursor: pointer;
         }
-        
+
         .hidden {
             display: none;
         }
@@ -135,10 +119,10 @@
             </div>
 
             <div class="field">
-                <input type="text" id="login-username" placeholder="아이디" />
+                <input type="text" id="login-username" placeholder="아이디" autocomplete="username" />
             </div>
             <div class="field">
-                <input type="password" id="login-password" placeholder="비밀번호" />
+                <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" />
             </div>
             <div class="error-msg" id="login-error"></div>
 
@@ -155,13 +139,13 @@
             </div>
 
             <div class="field">
-                <input type="text" id="signup-username" placeholder="아이디" />
+                <input type="text" id="signup-username" placeholder="아이디" autocomplete="username" />
             </div>
             <div class="field">
-                <input type="password" id="signup-password" placeholder="비밀번호" />
+                <input type="password" id="signup-password" placeholder="비밀번호" autocomplete="new-password" />
             </div>
             <div class="field">
-                <input type="password" id="signup-password-confirm" placeholder="비밀번호 확인" />
+                <input type="password" id="signup-password-confirm" placeholder="비밀번호 확인" autocomplete="new-password" />
             </div>
             <div class="error-msg" id="signup-error"></div>
 
@@ -173,8 +157,7 @@
 
     </div>
     <script type="module">
-      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-      const supabase = createClient('https://xyz.supabase.co', 'public-anon-key');
+      import { signIn, signUp, signOut } from './js/auth.js';
 
       const loginForm = document.getElementById('login-form');
       const signupForm = document.getElementById('signup-form');
@@ -203,7 +186,7 @@
       });
 
       // 4. [기능] 로그인 버튼 클릭 이벤트
-      loginBtn.addEventListener('click', () => {
+      loginBtn.addEventListener('click', async () => {
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value;
 
@@ -212,12 +195,27 @@
           return;
         }
 
-        // 로그인 성공 -> 메인 페이지로 이동
-        window.location.href = 'calendar.html';
+        loginError.textContent = '';
+        loginBtn.disabled = true;
+        try {
+          const { user } = await signIn(username, password);
+          // 예전에 학교 등록을 완료한 적이 있으면 바로 캘린더로, 처음이면 온보딩으로
+          if (user?.user_metadata?.school) {
+            window.location.href = 'calendar.html';
+          } else {
+            window.location.href = 'onboarding.html';
+          }
+        } catch (err) {
+          loginError.textContent = err.message.includes('아이디는')
+            ? err.message
+            : '아이디 또는 비밀번호가 올바르지 않습니다';
+        } finally {
+          loginBtn.disabled = false;
+        }
       });
 
       // 5. [기능] 회원가입 버튼 클릭 이벤트
-      signupBtn.addEventListener('click', () => {
+      signupBtn.addEventListener('click', async () => {
         const username = document.getElementById('signup-username').value.trim();
         const password = document.getElementById('signup-password').value;
         const passwordConfirm = document.getElementById('signup-password-confirm').value;
@@ -235,8 +233,25 @@
           return;
         }
 
-        // 회원가입 성공 -> 온보딩 페이지로 이동
-        window.location.href = 'onboarding.html';
+        signupError.textContent = '';
+        signupBtn.disabled = true;
+        try {
+          const { session } = await signUp(username, password);
+          if (session) {
+            // 가입과 동시에 세션이 발급되지만, 회원가입 후엔 로그인 화면으로 돌아가서
+            // 직접 로그인하도록 하기 위해 세션을 정리한다.
+            await signOut();
+          }
+          signupForm.classList.add('hidden');
+          loginForm.classList.remove('hidden');
+          loginError.textContent = '회원가입이 완료됐어요. 로그인해주세요.';
+        } catch (err) {
+          signupError.textContent = err.message.includes('아이디는')
+            ? err.message
+            : (err.message || '회원가입 중 오류가 발생했어요');
+        } finally {
+          signupBtn.disabled = false;
+        }
       });
     </script>
 

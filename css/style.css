@@ -46,9 +46,52 @@ body {
   line-height: 1;
 }
 
+.primary-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 9px;
+  background: #3348ff;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
 .primary-btn:disabled {
   background: #b7beff;
   cursor: not-allowed;
+}
+
+.onboarding-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 419px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 22px;
+  box-shadow: 0 8px 24px rgba(20, 24, 31, 0.06);
+  padding: 28px 27px 24px;
+}
+
+.onboarding-card .field-group {
+  padding: 0;
+  flex: none;
+}
+
+.onboarding-card .footer-area {
+  padding: 20px 0 0;
+}
+
+.onboarding-card .page-header {
+  padding: 0 0 20px;
 }
 
 .secondary-btn {
@@ -63,10 +106,12 @@ body {
 }
 
 .skip-link {
+  display: block;
+  width: fit-content;
   text-align: center;
   font-size: 12px;
   color: #8a8a8e;
-  margin-top: 14px;
+  margin: 14px auto 0;
   cursor: pointer;
   background: none;
   border: none;
@@ -103,6 +148,24 @@ body {
   color: #1c1c1e;
   font-family: inherit;
   resize: none;
+}
+
+.field-box input[type="date"],
+.field-box input[type="time"] {
+  position: relative;
+}
+
+.field-box input[type="date"]::-webkit-calendar-picker-indicator,
+.field-box input[type="time"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .field-box input::placeholder,
