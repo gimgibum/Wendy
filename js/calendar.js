@@ -32,13 +32,15 @@ function toDateKey(year, month, day) {
  * @param {number} year
  * @param {number} month - 0부터 시작 (0 = 1월)
  * @param {Array} events - [{ date: 'YYYY-MM-DD', time, title, color }]
- * @param {Function} [onDayClick] - 날짜를 그냥 클릭(드래그 없이)했을 때 실행할 콜백(dateKey)
+ * @param {Function} [onDayClick] - 날짜를 한 번(드래그 없이) 클릭했을 때 실행할 콜백(dateKey) - 일정 추가용
  * @param {Function} [onRangeSelect] - 여러 날짜를 드래그로 선택했을 때 실행할 콜백(fromDateKey, toDateKey)
+ * @param {Function} [onDayDoubleClick] - 날짜를 더블클릭했을 때 실행할 콜백(dateKey) - 일정 보기용
  */
-export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeSelect) {
+export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeSelect, onDayDoubleClick) {
   // 콜백은 매 렌더링(달 이동 등)마다 최신 걸로 갱신 - 드래그 이벤트 리스너는 아래에서 한 번만 연결됨
   gridEl._onDayClick = onDayClick;
   gridEl._onRangeSelect = onRangeSelect;
+  gridEl._onDayDoubleClick = onDayDoubleClick;
   wireDragSelection(gridEl);
 
   gridEl.innerHTML = "";
@@ -132,17 +134,23 @@ export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeS
 }
 
 /**
- * 캘린더 칸을 마우스/터치로 드래그해서 여러 날짜를 한 번에 선택하는 기능을 연결합니다.
+ * 캘린더 칸의 클릭/더블클릭/드래그를 처리합니다.
+ * - 드래그 없이 한 번 클릭: onDayClick(dateKey) - 일정 추가
+ * - 같은 칸을 빠르게 두 번 클릭: onDayDoubleClick(dateKey) - 그 날짜 일정 보기
+ * - 드래그로 여러 칸 선택: onRangeSelect(fromDateKey, toDateKey) - 기간 일정 추가
  * gridEl은 달이 바뀌어도 재사용되는 같은 DOM 노드라서, 리스너는 한 번만 연결하고
- * 최신 콜백은 gridEl._onDayClick / gridEl._onRangeSelect 에서 매번 읽어옵니다.
+ * 최신 콜백은 gridEl._onDayClick 등에서 매번 읽어옵니다.
  */
 function wireDragSelection(gridEl) {
   if (gridEl._dragWired) return;
   gridEl._dragWired = true;
 
+  const DBLCLICK_DELAY = 280;
   let dragStart = null;
   let dragEnd = null;
   let isDragging = false;
+  let pendingClickTimer = null;
+  let pendingClickDate = null;
 
   function clearSelectionStyle() {
     gridEl.querySelectorAll(".calendar-cell.selecting").forEach((el) => el.classList.remove("selecting"));
@@ -183,7 +191,22 @@ function wireDragSelection(gridEl) {
     clearSelectionStyle();
     if (!dragStart) return;
     if (dragStart === dragEnd) {
-      if (gridEl._onDayClick) gridEl._onDayClick(dragStart);
+      if (pendingClickTimer && pendingClickDate === dragStart) {
+        // 같은 칸을 짧은 시간 안에 다시 클릭 -> 더블클릭으로 처리
+        clearTimeout(pendingClickTimer);
+        pendingClickTimer = null;
+        pendingClickDate = null;
+        if (gridEl._onDayDoubleClick) gridEl._onDayDoubleClick(dragStart);
+      } else {
+        if (pendingClickTimer) clearTimeout(pendingClickTimer);
+        pendingClickDate = dragStart;
+        const clickedDate = dragStart;
+        pendingClickTimer = setTimeout(() => {
+          pendingClickTimer = null;
+          pendingClickDate = null;
+          if (gridEl._onDayClick) gridEl._onDayClick(clickedDate);
+        }, DBLCLICK_DELAY);
+      }
     } else if (gridEl._onRangeSelect) {
       const from = dragStart < dragEnd ? dragStart : dragEnd;
       const to = dragStart < dragEnd ? dragEnd : dragStart;

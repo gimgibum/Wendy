@@ -340,6 +340,11 @@
   color: #48484a;
 }
 
+.legend-item-me {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .legend-dot {
   width: 10px;
   height: 10px;

@@ -278,10 +278,10 @@ export async function getPersonalEvents(userId) {
 /**
  * 신규 개인 일정을 등록합니다.
  */
-export async function createPersonalEvent({ userId, title, date, time = null, memo = null }) {
+export async function createPersonalEvent({ userId, title, date, time = null, memo = null, color = "gray" }) {
   const { data, error } = await supabase
     .from("personal_events")
-    .insert([{ user_id: userId, title, date, time, memo }])
+    .insert([{ user_id: userId, title, date, time, memo, color }])
     .select()
     .single();
 
@@ -292,10 +292,10 @@ export async function createPersonalEvent({ userId, title, date, time = null, me
 /**
  * 기존 개인 일정을 수정합니다.
  */
-export async function updatePersonalEvent(eventId, { title, date, time, memo }) {
+export async function updatePersonalEvent(eventId, { title, date, time, memo, color }) {
   const { data, error } = await supabase
     .from("personal_events")
-    .update({ title, date, time, memo })
+    .update({ title, date, time, memo, color })
     .eq("id", eventId)
     .select()
     .single();

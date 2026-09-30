@@ -92,6 +92,22 @@
               <span class="legend-dot" id="my-color-dot"></span>
               <span id="my-color-name"></span>
             </div>
+
+            <div class="field-group hidden" id="event-color-group">
+              <div class="field-label">일정 색상</div>
+              <div class="group-color-row" id="event-color-row">
+                <button type="button" class="group-color-dot color-red" data-color="red" aria-label="빨강"></button>
+                <button type="button" class="group-color-dot color-orange" data-color="orange" aria-label="주황"></button>
+                <button type="button" class="group-color-dot color-yellow" data-color="yellow" aria-label="노랑"></button>
+                <button type="button" class="group-color-dot color-green" data-color="green" aria-label="초록"></button>
+                <button type="button" class="group-color-dot color-teal" data-color="teal" aria-label="청록"></button>
+                <button type="button" class="group-color-dot color-blue" data-color="blue" aria-label="파랑"></button>
+                <button type="button" class="group-color-dot color-purple" data-color="purple" aria-label="보라"></button>
+                <button type="button" class="group-color-dot color-pink" data-color="pink" aria-label="분홍"></button>
+                <button type="button" class="group-color-dot color-brown" data-color="brown" aria-label="갈색"></button>
+                <button type="button" class="group-color-dot color-gray selected" data-color="gray" aria-label="회색"></button>
+              </div>
+            </div>
           </div>
 
           <div class="footer-area">
@@ -239,6 +255,9 @@
     const addEventBtn = document.getElementById("add-event-btn");
     const calendarTargetList = document.getElementById("calendar-target-list");
     const editingTargetDisplay = document.getElementById("editing-target-display");
+    const eventColorGroup = document.getElementById("event-color-group");
+    const eventColorRow = document.getElementById("event-color-row");
+    let selectedEventColor = "gray";
 
     const today = new Date();
     let viewYear = today.getFullYear();
@@ -288,6 +307,11 @@
         const item = document.createElement("div");
         item.className = "legend-item";
         item.innerHTML = `<span class="legend-dot ${getColorClass(member.color)}"></span><span>${member.name}</span>`;
+        if (activeGroup && member.id === activeGroup.memberId) {
+          item.classList.add("legend-item-me");
+          item.title = "더블클릭하면 닉네임을 수정할 수 있어요";
+          item.addEventListener("dblclick", () => handleEditNickname(activeGroup));
+        }
         legend.appendChild(item);
       });
     }
@@ -315,13 +339,6 @@
           switchActiveGroup(group.groupId);
         });
         item.appendChild(info);
-
-        const editNameBtn = document.createElement("button");
-        editNameBtn.type = "button";
-        editNameBtn.className = "menu-group-leave-btn";
-        editNameBtn.textContent = "닉네임";
-        editNameBtn.addEventListener("click", () => handleEditNickname(group));
-        item.appendChild(editNameBtn);
 
         if (group.isOwner) {
           const deleteBtn = document.createElement("button");
@@ -367,7 +384,7 @@
           time: event.time ? event.time.slice(0, 5) : "",
           title: event.title,
           memo: event.memo || "",
-          color: "gray",
+          color: event.color || "gray",
           isMine: true,
           source: "personal",
         }));
@@ -448,6 +465,7 @@
         viewMonth,
         events,
         (dateKey) => {
+          // 한 번 클릭 -> 그 날짜의 일정 보기
           openDayDetailView(dateKey);
         },
         (fromKey, toKey) => {
@@ -458,6 +476,11 @@
           }
           returnView = "calendar";
           openAddEventView(fromKey, null, toKey);
+        },
+        (dateKey) => {
+          // 더블클릭 -> 그 날짜에 일정 추가
+          returnView = "calendar";
+          openAddEventView(dateKey);
         },
       );
     }
@@ -509,7 +532,28 @@
           })
         );
       });
+      updateEventColorVisibility();
     }
+
+    function selectEventColor(color) {
+      selectedEventColor = color;
+      eventColorRow.querySelectorAll(".group-color-dot").forEach((dot) => {
+        dot.classList.toggle("selected", dot.dataset.color === color);
+      });
+    }
+
+    function updateEventColorVisibility() {
+      const personalCb = calendarTargetList.querySelector('input[value="personal"]');
+      eventColorGroup.classList.toggle("hidden", !personalCb || !personalCb.checked);
+    }
+
+    eventColorRow.addEventListener("click", (event) => {
+      const dotBtn = event.target.closest(".group-color-dot");
+      if (!dotBtn) return;
+      selectEventColor(dotBtn.dataset.color);
+    });
+
+    calendarTargetList.addEventListener("change", updateEventColorVisibility);
 
     function openAddEventView(dateKey, eventToEdit, rangeEndKey) {
       const dateToUse = dateKey || new Date().toISOString().slice(0, 10);
@@ -544,9 +588,19 @@
         dot.className = `legend-dot ${getColorClass(eventToEdit.color)}`;
         document.getElementById("my-color-name").textContent =
           eventToEdit.source === "personal" ? "개인 캘린더" : activeGroup.groupName;
+
+        if (eventToEdit.source === "personal") {
+          // 개인 일정은 나 혼자만 쓰는 캘린더라, 색상을 일정마다 자유롭게 바꿀 수 있게 함
+          eventColorGroup.classList.remove("hidden");
+          selectEventColor(eventToEdit.color || "gray");
+        } else {
+          // 그룹 일정 색상은 멤버 색상으로 고정되므로 여기서는 바꿀 수 없음
+          eventColorGroup.classList.add("hidden");
+        }
       } else {
         editingTargetDisplay.classList.add("hidden");
         calendarTargetList.classList.remove("hidden");
+        selectEventColor("gray");
         renderCalendarTargetOptions(viewMode === "personal" ? "personal" : activeGroup.groupId);
       }
 
@@ -665,7 +719,13 @@
       try {
         if (editingEventId) {
           if (editingEventSource === "personal") {
-            await dbUpdatePersonalEvent(editingEventId, { title, date, time: time || null, memo: memo || null });
+            await dbUpdatePersonalEvent(editingEventId, {
+              title,
+              date,
+              time: time || null,
+              memo: memo || null,
+              color: selectedEventColor,
+            });
           } else {
             await dbUpdateEvent(editingEventId, { title, date, time: time || null, memo: memo || null });
           }
@@ -690,6 +750,7 @@
                     date: d,
                     time: time || null,
                     memo: memo || null,
+                    color: selectedEventColor,
                   })
                 );
                 return;
