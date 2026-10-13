@@ -31,7 +31,8 @@ export async function searchSchools(keyword) {
  * @param {string} schoolCode - 학교코드
  * @param {string} fromYmd - 조회 시작일 (YYYYMMDD)
  * @param {string} toYmd - 조회 종료일 (YYYYMMDD)
- * @returns {Promise<Array<{date: string, eventName: string}>>}
+ * @returns {Promise<Array<{date: string, eventName: string, schoolName: string, dayType: string}>>}
+ *   dayType은 수업공제일명 ("공휴일", "휴업일", "해당없음" 등)
  */
 export async function getSchoolSchedule(officeCode, schoolCode, fromYmd, toYmd) {
   const url = `${BASE_URL}/SchoolSchedule?KEY=${NEIS_API_KEY}&Type=json&pIndex=1&pSize=100&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${schoolCode}&AA_FROM_YMD=${fromYmd}&AA_TO_YMD=${toYmd}`;
@@ -45,5 +46,7 @@ export async function getSchoolSchedule(officeCode, schoolCode, fromYmd, toYmd) 
   return rows.map((row) => ({
     date: row.AA_YMD,
     eventName: row.EVENT_NM,
+    schoolName: row.SCHUL_NM,
+    dayType: row.SBTR_DD_SC_NM,
   }));
 }

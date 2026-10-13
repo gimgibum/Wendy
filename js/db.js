@@ -58,7 +58,7 @@ export async function getMyGroups() {
 
   const { data, error } = await supabase
     .from("members")
-    .select("id, name, color, group_id, groups(id, name, code, created_by)")
+    .select("id, name, color, group_id, school_code, office_code, groups(id, name, code, created_by)")
     .eq("user_id", userData.user.id);
   if (error) throw error;
 
@@ -66,6 +66,8 @@ export async function getMyGroups() {
     memberId: row.id,
     nickname: row.name,
     color: row.color,
+    schoolCode: row.school_code,
+    officeCode: row.office_code,
     groupId: row.group_id,
     groupName: row.groups.name,
     groupCode: row.groups.code,

@@ -102,15 +102,25 @@ export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeS
     if (dateKey === todayKey) cellEl.classList.add("today");
     cellEl.dataset.date = dateKey;
 
+    const dayHeaderEl = document.createElement("div");
+    dayHeaderEl.className = "day-header";
+
     const dayNumberEl = document.createElement("div");
     dayNumberEl.className = "day-number";
     dayNumberEl.textContent = dayNumber;
+    dayHeaderEl.appendChild(dayNumberEl);
 
     if (!isOutside) {
       const holidayName = getHolidayName(dateKey);
       if (holidayName) {
         dayNumberEl.classList.add("holiday");
-        dayNumberEl.title = holidayName;
+        cellEl.classList.add("holiday");
+
+        const holidayNameEl = document.createElement("span");
+        holidayNameEl.className = "holiday-name";
+        holidayNameEl.textContent = holidayName;
+        holidayNameEl.title = holidayName;
+        dayHeaderEl.appendChild(holidayNameEl);
       } else if (weekdayIndex === 0) {
         dayNumberEl.classList.add("sunday");
       } else if (weekdayIndex === 6) {
@@ -118,7 +128,7 @@ export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeS
       }
     }
 
-    cellEl.appendChild(dayNumberEl);
+    cellEl.appendChild(dayHeaderEl);
 
     const dayEvents = eventsByDate[dateKey] || [];
     dayEvents.forEach((event) => {
