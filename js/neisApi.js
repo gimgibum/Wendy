@@ -35,10 +35,18 @@ export async function searchSchools(keyword) {
  *   dayType은 수업공제일명 ("공휴일", "휴업일", "해당없음" 등)
  */
 export async function getSchoolSchedule(officeCode, schoolCode, fromYmd, toYmd) {
-  const url = `${BASE_URL}/SchoolSchedule?KEY=${NEIS_API_KEY}&Type=json&pIndex=1&pSize=100&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${schoolCode}&AA_FROM_YMD=${fromYmd}&AA_TO_YMD=${toYmd}`;
+  // pSize는 NEIS 최대값(1000) - 몇 달치를 한 번에 받아도 잘리지 않도록
+  const url = `${BASE_URL}/SchoolSchedule?KEY=${NEIS_API_KEY}&Type=json&pIndex=1&pSize=1000&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${schoolCode}&AA_FROM_YMD=${fromYmd}&AA_TO_YMD=${toYmd}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("학사일정 요청이 실패했습니다");
   const data = await res.json();
+
+  // 데이터가 없으면 INFO-200, 인증키 오류 등은 ERROR-xxx 코드가 RESULT로 옴
+  // (오류를 "일정 0건"으로 처리하면 학사일정 변경 알림에서 전부 삭제된 것처럼 보이므로 에러로 던짐)
+  const resultCode = data?.RESULT?.CODE;
+  if (resultCode && resultCode !== "INFO-200") {
+    throw new Error(data.RESULT.MESSAGE || "학사일정 요청이 실패했습니다");
+  }
 
   const rows = data?.SchoolSchedule?.[1]?.row;
   if (!rows) return [];

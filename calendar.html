@@ -31,6 +31,19 @@
 
       <div class="active-group-label" id="active-group-label"></div>
 
+      <!-- 학사일정 변경 알림 -->
+      <div class="sync-notice hidden" id="sync-notice" role="status">
+        <div class="sync-notice-header">
+          <span class="sync-notice-title" id="sync-notice-title"></span>
+          <button class="sync-notice-close" id="sync-notice-close" aria-label="알림 닫기">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <ul class="sync-notice-list" id="sync-notice-list"></ul>
+      </div>
+
       <div class="calendar-empty-state hidden" id="calendar-empty-state">
         아직 참여한 그룹이 없어요. 메뉴에서 그룹을 만들거나 참여해보세요.
       </div>
@@ -198,6 +211,7 @@
       </div>
       <div class="menu-divider"></div>
       <button class="menu-item" id="menu-add-group-btn">+ 그룹 추가 (생성/참여)</button>
+      <button class="menu-item hidden" id="menu-notify-btn">학사일정 변경 알림 받기</button>
       <div class="menu-divider"></div>
       <button class="menu-logout-btn" id="menu-logout-btn">로그아웃</button>
     </nav>
@@ -228,6 +242,7 @@
       updateMemberSchoolInfo,
     } from "./js/db.js";
     import { getSchoolSchedule } from "./js/neisApi.js";
+    import { checkSchoolScheduleUpdates, formatScheduleChange } from "./js/scheduleSync.js";
 
     let currentUser = null;
     // 온보딩에서 선택한 내 학교 ({name, code, officeCode, region}), 건너뛰었으면 null
@@ -251,6 +266,12 @@
     let schoolLoadSeq = 0;
     // 개인 캘린더에서 내 학사일정을 표시할 색 (그룹 캘린더에서는 각 멤버 색상을 사용)
     const PERSONAL_SCHOOL_COLOR = "blue";
+    // 앱을 켜두는 동안 내 학교 학사일정이 바뀌었는지 확인하는 주기 (30분)
+    const SCHOOL_SYNC_INTERVAL = 30 * 60 * 1000;
+    // 마지막으로 학사일정 변경을 확인한 시각 (다른 탭에 있다가 돌아왔을 때 다시 확인할지 판단용)
+    let lastSchoolSyncAt = 0;
+    // 알림 배너에 한 번에 보여줄 최대 변경 건수
+    const MAX_NOTICE_ITEMS = 5;
 
     const calendarView = document.getElementById("calendar-view");
     const addEventView = document.getElementById("add-event-view");
@@ -270,6 +291,10 @@
     const editingTargetDisplay = document.getElementById("editing-target-display");
     const eventColorGroup = document.getElementById("event-color-group");
     const eventColorRow = document.getElementById("event-color-row");
+    const syncNotice = document.getElementById("sync-notice");
+    const syncNoticeTitle = document.getElementById("sync-notice-title");
+    const syncNoticeList = document.getElementById("sync-notice-list");
+    const menuNotifyBtn = document.getElementById("menu-notify-btn");
     let selectedEventColor = "gray";
 
     const today = new Date();
@@ -543,6 +568,83 @@
         console.warn("그룹에 학교 정보를 반영하지 못했어요", err);
       }
     }
+
+    /**
+     * 내 학교 학사일정이 지난번 확인 때와 달라졌는지 확인하고, 바뀌었으면 달력을 새로 불러오고 알림을 띄웁니다.
+     * 앱 접속 시, 30분마다, 다른 탭에 있다가 돌아왔을 때 실행됩니다.
+     */
+    async function syncSchoolSchedule() {
+      if (!mySchool) return;
+      lastSchoolSyncAt = Date.now();
+
+      let changes;
+      try {
+        changes = await checkSchoolScheduleUpdates(currentUser.id, mySchool);
+      } catch (err) {
+        // NEIS가 응답하지 않으면 이번엔 건너뛰고 다음 주기에 다시 확인
+        console.warn("학사일정 변경 여부를 확인하지 못했어요", err);
+        return;
+      }
+      if (changes.length === 0) return;
+
+      // 캐시에 남아 있는 예전 학사일정을 버리고 다시 불러와서, 바뀐 내용이 달력에 바로 보이게 함
+      schoolScheduleCache.clear();
+      loadSchoolEvents();
+      showScheduleNotice(changes);
+    }
+
+    function showScheduleNotice(changes) {
+      const lines = changes.map(formatScheduleChange);
+      const moreCount = lines.length - MAX_NOTICE_ITEMS;
+
+      syncNoticeTitle.textContent = `${mySchool.name} 학사일정이 변경됐어요 (${changes.length}건)`;
+      syncNoticeList.innerHTML = "";
+      lines.slice(0, MAX_NOTICE_ITEMS).forEach((line) => {
+        const item = document.createElement("li");
+        item.textContent = line;
+        syncNoticeList.appendChild(item);
+      });
+      if (moreCount > 0) {
+        const item = document.createElement("li");
+        item.className = "sync-notice-more";
+        item.textContent = `외 ${moreCount}건`;
+        syncNoticeList.appendChild(item);
+      }
+      syncNotice.classList.remove("hidden");
+
+      // 다른 탭을 보고 있을 때는 브라우저 알림으로도 알려줌 (메뉴에서 알림을 허용한 경우만)
+      if ("Notification" in window && Notification.permission === "granted" && document.visibilityState === "hidden") {
+        try {
+          const body = lines.slice(0, 3).join("\n") + (lines.length > 3 ? `\n외 ${lines.length - 3}건` : "");
+          new Notification("Wendy - 학사일정 변경", { body });
+        } catch (err) {
+          // 일부 모바일 브라우저는 페이지에서 바로 알림을 만들 수 없음 - 화면 배너로만 알림
+        }
+      }
+    }
+
+    document.getElementById("sync-notice-close").addEventListener("click", () => {
+      syncNotice.classList.add("hidden");
+    });
+
+    function updateNotifyMenu() {
+      const supported = "Notification" in window;
+      menuNotifyBtn.classList.toggle("hidden", !supported || !mySchool);
+      if (supported) {
+        menuNotifyBtn.textContent =
+          Notification.permission === "granted" ? "학사일정 변경 알림: 켜짐" : "학사일정 변경 알림 받기";
+      }
+    }
+
+    menuNotifyBtn.addEventListener("click", async () => {
+      if (Notification.permission === "granted") return;
+      if (Notification.permission === "denied") {
+        alert("알림이 차단되어 있어요. 브라우저 주소창 왼쪽의 사이트 설정에서 알림을 허용해주세요.");
+        return;
+      }
+      await Notification.requestPermission();
+      updateNotifyMenu();
+    });
 
     async function switchActiveGroup(groupId) {
       const found = myGroups.find((g) => g.groupId === groupId);
@@ -1147,6 +1249,15 @@
       await loadMyGroups();
       await syncMySchoolToGroups();
       await loadCalendarData();
+
+      updateNotifyMenu();
+      syncSchoolSchedule();
+      setInterval(syncSchoolSchedule, SCHOOL_SYNC_INTERVAL);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && Date.now() - lastSchoolSyncAt >= SCHOOL_SYNC_INTERVAL) {
+          syncSchoolSchedule();
+        }
+      });
     }
 
     init();
