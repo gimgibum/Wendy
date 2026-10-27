@@ -234,6 +234,42 @@
       </div>
     </div>
 
+    <!-- 그룹 내 색상 변경 화면 -->
+    <div id="color-change-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="color-change-back-btn" aria-label="뒤로가기">←</button>
+            <h1>내 색상 변경</h1>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">그룹</div>
+            <div class="color-change-group" id="color-change-group-name"></div>
+
+            <div class="field-label">내 색상</div>
+            <div class="group-color-row" id="color-change-row">
+              <button type="button" class="group-color-dot color-red" data-color="red" aria-label="빨강"></button>
+              <button type="button" class="group-color-dot color-orange" data-color="orange" aria-label="주황"></button>
+              <button type="button" class="group-color-dot color-yellow" data-color="yellow" aria-label="노랑"></button>
+              <button type="button" class="group-color-dot color-green" data-color="green" aria-label="초록"></button>
+              <button type="button" class="group-color-dot color-teal" data-color="teal" aria-label="청록"></button>
+              <button type="button" class="group-color-dot color-blue" data-color="blue" aria-label="파랑"></button>
+              <button type="button" class="group-color-dot color-purple" data-color="purple" aria-label="보라"></button>
+              <button type="button" class="group-color-dot color-pink" data-color="pink" aria-label="분홍"></button>
+              <button type="button" class="group-color-dot color-brown" data-color="brown" aria-label="갈색"></button>
+              <button type="button" class="group-color-dot color-gray" data-color="gray" aria-label="회색"></button>
+            </div>
+            <div class="color-taken-hint hidden" id="color-change-taken-hint">이미 이 그룹의 다른 멤버가 쓰고 있는 색상은 선택할 수 없어요</div>
+          </div>
+
+          <div class="footer-area">
+            <button class="primary-btn" id="color-change-submit-btn" disabled>색상 변경</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 메뉴 -->
     <div class="menu-overlay hidden" id="menu-overlay"></div>
     <nav class="menu-drawer hidden" id="menu-drawer">
@@ -245,6 +281,7 @@
       </div>
       <div class="menu-divider"></div>
       <button class="menu-item" id="menu-add-group-btn">+ 그룹 추가 (생성/참여)</button>
+      <button class="menu-item hidden" id="menu-color-btn">이 그룹에서 내 색상 변경</button>
       <button class="menu-item" id="menu-school-btn">내 학교 변경</button>
       <button class="menu-item hidden" id="menu-notify-btn">일정 변경 알림 받기</button>
       <div class="menu-divider"></div>
@@ -255,7 +292,7 @@
  <script type="module">
     import { renderCalendar, getColorClass } from "./js/calendar.js";
     import { loadHolidays } from "./js/holidays.js";
-    import { signOut, getCurrentUser, updateMySchool } from "./js/auth.js";
+    import { signOut, getCurrentUser, updateMySchool, getSessionUser, onAuthUserChange } from "./js/auth.js";
     import {
       createGroup,
       findGroupIdByCode,
@@ -263,6 +300,7 @@
       leaveGroup as dbLeaveGroup,
       deleteGroup as dbDeleteGroup,
       joinGroupMember,
+      joinGroupByCode,
       getGroupMembers,
       getGroupUsedColors,
       getGroupEvents,
@@ -274,6 +312,7 @@
       updatePersonalEvent as dbUpdatePersonalEvent,
       deletePersonalEvent as dbDeletePersonalEvent,
       updateMemberName as dbUpdateMemberName,
+      updateMemberColor as dbUpdateMemberColor,
       updateMemberSchoolInfo,
     } from "./js/db.js";
     import { getSchoolSchedule, searchSchools } from "./js/neisApi.js";
@@ -321,6 +360,7 @@
     const dayDetailView = document.getElementById("day-detail-view");
     const groupAddView = document.getElementById("group-add-view");
     const schoolChangeView = document.getElementById("school-change-view");
+    const colorChangeView = document.getElementById("color-change-view");
     const grid = document.getElementById("calendar-grid");
     const legend = document.getElementById("legend");
     const monthTitle = document.getElementById("month-title");
@@ -339,6 +379,7 @@
     const syncNoticeTitle = document.getElementById("sync-notice-title");
     const syncNoticeList = document.getElementById("sync-notice-list");
     const menuNotifyBtn = document.getElementById("menu-notify-btn");
+    const menuColorBtn = document.getElementById("menu-color-btn");
     let selectedEventColor = "gray";
 
     const today = new Date();
@@ -375,6 +416,7 @@
       dayDetailView.classList.toggle("hidden", view !== "day-detail");
       groupAddView.classList.toggle("hidden", view !== "group-add");
       schoolChangeView.classList.toggle("hidden", view !== "school-change");
+      colorChangeView.classList.toggle("hidden", view !== "color-change");
     }
 
     function updateEmptyState() {
@@ -401,6 +443,8 @@
 
     function renderGroupMenu() {
       menuHomeBtn.classList.toggle("active", viewMode === "personal");
+      // 색상은 그룹마다 따로 정하므로, 그룹 캘린더를 보고 있을 때만 그 그룹의 내 색상을 바꿀 수 있게 함
+      menuColorBtn.classList.toggle("hidden", !(viewMode === "group" && activeGroup));
 
       if (myGroups.length === 0) {
         menuGroupList.innerHTML = '<div class="menu-empty">참여 중인 그룹이 없어요</div>';
@@ -1301,18 +1345,11 @@
             return;
           }
 
-          let groupId;
+          let member;
           try {
-            groupId = await findGroupIdByCode(code);
-          } catch (err) {
-            alert(err.message || "존재하지 않는 초대 코드예요. 코드를 다시 확인해주세요.");
-            return;
-          }
-
-          try {
-            await joinGroupMember({
-              userId: currentUser.id,
-              groupId,
+            // 아직 멤버가 아닌 그룹에는 RLS 때문에 members에 직접 추가할 수 없어서, 초대 코드를 확인하는 DB 함수로 참여
+            member = await joinGroupByCode({
+              code,
               name: nickname,
               color: selectedGroupColor,
               schoolCode: mySchool?.code ?? null,
@@ -1324,6 +1361,8 @@
               checkTakenColorsForCode(code);
             } else if (err.code === "23505") {
               alert("이미 참여 중인 그룹입니다");
+            } else if (err.code === "PGRST202") {
+              alert("DB에 그룹 참여 함수가 아직 없어요. Supabase SQL Editor에서 supabase/join_group.sql을 실행해주세요.");
             } else {
               alert(err.message || "참여 중 오류가 발생했어요");
             }
@@ -1331,7 +1370,7 @@
           }
 
           await loadMyGroups();
-          await switchActiveGroup(groupId);
+          await switchActiveGroup(member.group_id);
           showView("calendar");
         }
       } catch (err) {
@@ -1344,6 +1383,90 @@
     document.getElementById("menu-add-group-btn").addEventListener("click", () => {
       closeMenu();
       openGroupAddView();
+    });
+
+    const colorChangeGroupName = document.getElementById("color-change-group-name");
+    const colorChangeRow = document.getElementById("color-change-row");
+    const colorChangeTakenHint = document.getElementById("color-change-taken-hint");
+    const colorChangeSubmitBtn = document.getElementById("color-change-submit-btn");
+
+    // 색상을 바꾸는 그룹 (myGroups 중 하나), 새로 고른 색, 그 그룹의 다른 멤버가 쓰고 있는 색 목록
+    let colorChangeGroup = null;
+    let selectedMemberColor = null;
+    let takenMemberColors = [];
+
+    function renderColorChangeRow() {
+      colorChangeRow.querySelectorAll(".group-color-dot").forEach((dot) => {
+        const isTaken = takenMemberColors.includes(dot.dataset.color);
+        dot.classList.toggle("taken", isTaken);
+        dot.disabled = isTaken;
+        dot.classList.toggle("selected", dot.dataset.color === selectedMemberColor);
+      });
+      colorChangeTakenHint.classList.toggle("hidden", takenMemberColors.length === 0);
+      colorChangeSubmitBtn.disabled = selectedMemberColor === colorChangeGroup.color;
+    }
+
+    async function loadTakenMemberColors(group) {
+      try {
+        const used = await getGroupUsedColors(group.groupId);
+        // 그 사이에 다른 그룹의 색상 변경 화면을 열었으면 이 결과는 버림
+        if (colorChangeGroup !== group) return;
+        takenMemberColors = used.filter((color) => color !== group.color);
+        // 고른 색을 그 사이에 다른 멤버가 가져갔으면 원래 색으로 되돌림
+        if (takenMemberColors.includes(selectedMemberColor)) selectedMemberColor = group.color;
+        renderColorChangeRow();
+      } catch (err) {
+        // 못 불러와도 저장할 때 DB에서 같은 색 중복을 막아줌
+        console.warn("그룹에서 사용 중인 색상을 불러오지 못했어요", err);
+      }
+    }
+
+    function openColorChangeView(group) {
+      colorChangeGroup = group;
+      selectedMemberColor = group.color;
+      takenMemberColors = [];
+      colorChangeGroupName.textContent = group.groupName;
+      renderColorChangeRow();
+      showView("color-change");
+      loadTakenMemberColors(group);
+    }
+
+    colorChangeRow.addEventListener("click", (event) => {
+      const dotBtn = event.target.closest(".group-color-dot");
+      if (!dotBtn || dotBtn.disabled) return;
+      selectedMemberColor = dotBtn.dataset.color;
+      renderColorChangeRow();
+    });
+
+    colorChangeSubmitBtn.addEventListener("click", async () => {
+      const group = colorChangeGroup;
+      colorChangeSubmitBtn.disabled = true;
+      try {
+        await dbUpdateMemberColor(group.memberId, selectedMemberColor);
+      } catch (err) {
+        if (err.code === "23505") {
+          alert("방금 다른 멤버가 그 색상을 먼저 선택했어요. 다른 색상을 골라주세요.");
+          loadTakenMemberColors(group);
+        } else {
+          alert(err.message || "색상을 바꾸는 중 오류가 발생했어요");
+        }
+        renderColorChangeRow();
+        return;
+      }
+      // 메뉴의 그룹 색, 범례, 내 일정 색이 모두 새 색으로 보이도록 다시 불러옴
+      await loadMyGroups();
+      showView("calendar");
+      await loadCalendarData();
+    });
+
+    menuColorBtn.addEventListener("click", () => {
+      if (!activeGroup) return;
+      closeMenu();
+      openColorChangeView(activeGroup);
+    });
+
+    document.getElementById("color-change-back-btn").addEventListener("click", () => {
+      showView("calendar");
     });
 
     const menuSchoolBtn = document.getElementById("menu-school-btn");
@@ -1491,6 +1614,22 @@
       window.location.href = "index.html";
     });
 
+    /**
+     * 같은 브라우저의 다른 탭에서 다른 계정으로 로그인하면 로그인 정보가 공유돼서, 이 탭은 화면에 보이는 계정이 아닌
+     * 다른 계정으로 DB에 요청하게 됨 (그러면 "new row violates row-level security policy" 오류로 막힘).
+     * 계정이 바뀌거나 로그아웃되면 이 탭을 새로 불러와서 지금 로그인된 계정에 맞춤.
+     */
+    function watchAccountChange() {
+      function reloadIfAccountChanged(user) {
+        if (!user || user.id !== currentUser.id) window.location.reload();
+      }
+      onAuthUserChange(reloadIfAccountChanged);
+      // 브라우저에 따라 다른 탭의 로그인 변경을 바로 알려주지 않을 수 있어서, 이 탭으로 돌아올 때도 한 번 더 확인
+      document.addEventListener("visibilitychange", async () => {
+        if (document.visibilityState === "visible") reloadIfAccountChanged(await getSessionUser());
+      });
+    }
+
     async function init() {
       currentUser = await getCurrentUser();
       if (!currentUser) {
@@ -1498,6 +1637,7 @@
         return;
       }
       mySchool = currentUser.user_metadata?.school || null;
+      watchAccountChange();
       await loadMyGroups();
       await syncMySchoolToGroups();
       await loadCalendarData();

@@ -67,6 +67,23 @@ export async function updateMySchool(school) {
 }
 
 /**
+ * 이 브라우저에 지금 로그인된 유저를 서버에 묻지 않고 저장된 세션에서 바로 반환합니다. 없으면 null.
+ * (같은 브라우저의 다른 탭에서 다른 계정으로 로그인하면 세션이 공유돼서 이 값도 바뀜)
+ */
+export async function getSessionUser() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user ?? null;
+}
+
+/**
+ * 로그인한 계정이 바뀌거나 로그아웃되면 알려줍니다 (같은 브라우저의 다른 탭에서 바꾼 경우 포함).
+ * @param {(user: object|null) => void} callback
+ */
+export function onAuthUserChange(callback) {
+  supabase.auth.onAuthStateChange((event, session) => callback(session?.user ?? null));
+}
+
+/**
  * 현재 로그인된 유저를 반환합니다. 로그인 상태가 아니면 null.
  */
 export async function getCurrentUser() {

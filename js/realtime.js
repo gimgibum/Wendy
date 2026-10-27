@@ -55,9 +55,13 @@ function readSnapshot(storageKey) {
   }
 }
 
-function saveSnapshot(storageKey, known) {
+function saveSnapshot(storageKey, groupIds, known) {
   // { 그룹id: { 일정id: entry } } 형태로 저장
+  // 일정이 하나도 없는 그룹도 빈 칸으로 남겨둬야, 다음 접속 때 "새로 들어온 그룹"으로 오해하지 않고 첫 일정 추가를 알려줌
   const groups = {};
+  groupIds.forEach((groupId) => {
+    groups[groupId] = {};
+  });
   known.forEach((entry, eventId) => {
     if (!groups[entry.groupId]) groups[entry.groupId] = {};
     groups[entry.groupId][eventId] = entry;
@@ -80,6 +84,7 @@ function saveSnapshot(storageKey, known) {
 export function watchGroupEvents(userId, groups, onChanges) {
   if (groups.length === 0) return () => {};
 
+  const groupIds = groups.map((g) => g.groupId);
   const storageKey = `${STORAGE_PREFIX}:${userId}`;
   // 지금까지 알고 있는 내 그룹 일정 (key: 일정 id) - 삭제 알림은 일정 id만 오기 때문에 무엇이 지워졌는지 여기서 찾음
   const known = new Map();
@@ -158,12 +163,12 @@ export function watchGroupEvents(userId, groups, onChanges) {
     const change = applyPayload(payload);
     if (!change) return;
     // 알림을 띄우기 전에 앱을 닫아도 다음 접속 때 같은 변경을 또 알리지 않도록 바로 저장
-    if (hasFullList) saveSnapshot(storageKey, known);
+    if (hasFullList) saveSnapshot(storageKey, groupIds, known);
     addChanges([change], false);
   }
 
   // 불러오는 사이에 바뀐 일정을 놓치지 않도록 구독을 먼저 시작
-  const filter = `group_id=in.(${groups.map((g) => g.groupId).join(",")})`;
+  const filter = `group_id=in.(${groupIds.join(",")})`;
   const channel = supabase
     .channel(`group-events:${userId}:${++channelSeq}`)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "events", filter }, handlePayload)
@@ -179,7 +184,7 @@ export function watchGroupEvents(userId, groups, onChanges) {
   (async () => {
     let current;
     try {
-      current = await Promise.all(groups.map((g) => getGroupEvents(g.groupId)));
+      current = await Promise.all(groupIds.map((groupId) => getGroupEvents(groupId)));
     } catch (err) {
       // 그룹 일정을 못 불러와도 새로 추가/수정되는 일정은 실시간으로 받을 수 있음
       console.warn("그룹 일정 변경 확인을 위한 일정을 불러오지 못했어요", err);
@@ -194,7 +199,7 @@ export function watchGroupEvents(userId, groups, onChanges) {
       // 지난번 접속 때 저장해둔 그룹 일정과 비교 (새로 들어온 그룹은 비교할 기록이 없으므로 건너뜀)
       const previous = readSnapshot(storageKey);
       if (previous && previous.groups) {
-        groups.forEach(({ groupId }) => {
+        groupIds.forEach((groupId) => {
           const before = previous.groups[groupId];
           if (!before) return;
           const after = {};
@@ -212,7 +217,7 @@ export function watchGroupEvents(userId, groups, onChanges) {
     loaded = true;
     const realtimeChanges = queued.map(applyPayload).filter(Boolean);
     queued = [];
-    if (hasFullList) saveSnapshot(storageKey, known);
+    if (hasFullList) saveSnapshot(storageKey, groupIds, known);
     if (startupChanges.length > 0) addChanges(startupChanges, true);
     if (realtimeChanges.length > 0) addChanges(realtimeChanges, false);
   })();

@@ -3,8 +3,13 @@
 -- (대시보드 > Database > Publications > supabase_realtime 에서 events 를 켜는 것과 같음)
 
 -- events 테이블의 변경 내용을 Realtime으로 보내도록 등록
+-- (실시간 등록 목록 supabase_realtime 이 없는 프로젝트도 있어서, 없으면 먼저 만듦)
 do $$
 begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+
   if not exists (
     select 1
     from pg_publication_tables
@@ -19,3 +24,6 @@ end $$;
 -- 실시간 알림도 events 테이블의 SELECT 정책(RLS)을 그대로 따르므로,
 -- 그룹 캘린더에서 볼 수 있는 일정(같은 그룹 일정)의 추가/수정만 전달됩니다.
 -- 삭제는 Supabase가 지워진 일정의 id만 보내주므로, 앱이 미리 불러둔 내 그룹 일정 목록에서 찾아 알립니다.
+
+-- 확인: 결과에 events 가 나오면 성공
+select tablename from pg_publication_tables where pubname = 'supabase_realtime';

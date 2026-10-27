@@ -139,12 +139,47 @@ export async function joinGroupMember({
 }
 
 /**
+ * 초대 코드로 그룹에 참여합니다 (members에 내 멤버 정보 추가).
+ * 아직 멤버가 아닌 그룹은 RLS 때문에 members에 직접 추가할 수 없어서,
+ * SECURITY DEFINER인 join_group_with_code RPC가 초대 코드와 로그인한 계정을 확인한 뒤 대신 추가합니다. (supabase/join_group.sql)
+ * 이미 참여 중이거나 같은 그룹의 다른 멤버가 쓰는 색이면 23505, 없는 초대 코드면 P0002 에러를 던집니다.
+ * @returns {Promise<object>} 추가된 멤버 정보 (group_id 포함)
+ */
+export async function joinGroupByCode({ code, name, color, schoolCode = null, officeCode = null }) {
+  const { data, error } = await supabase.rpc("join_group_with_code", {
+    p_invite_code: code,
+    p_name: name,
+    p_color: color,
+    p_school_code: schoolCode,
+    p_office_code: officeCode,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * 특정 그룹에서 내가 사용하는 닉네임을 수정합니다.
  */
 export async function updateMemberName(memberId, name) {
   const { data, error } = await supabase
     .from("members")
     .update({ name })
+    .eq("id", memberId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 특정 그룹에서 내가 사용하는 색상을 수정합니다.
+ * 같은 그룹의 다른 멤버가 이미 쓰고 있는 색이면 DB에서 막혀 23505 에러가 납니다.
+ */
+export async function updateMemberColor(memberId, color) {
+  const { data, error } = await supabase
+    .from("members")
+    .update({ color })
     .eq("id", memberId)
     .select()
     .single();

@@ -77,7 +77,8 @@
   color: #3348ff;
 }
 
-.current-school {
+.current-school,
+.color-change-group {
   padding: 12px 14px;
   border-radius: 10px;
   background: #f6f7f9;
