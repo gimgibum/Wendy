@@ -56,6 +56,17 @@ export async function signOut() {
 }
 
 /**
+ * 내 학교 정보를 계정에 저장합니다 (온보딩 이후 메뉴에서 학교를 바꿀 때).
+ * @param {{name: string, code: string, officeCode: string, region: string}} school
+ * @returns {Promise<object>} 학교 정보가 반영된 유저
+ */
+export async function updateMySchool(school) {
+  const { data, error } = await supabase.auth.updateUser({ data: { school } });
+  if (error) throw error;
+  return data.user;
+}
+
+/**
  * 현재 로그인된 유저를 반환합니다. 로그인 상태가 아니면 null.
  */
 export async function getCurrentUser() {

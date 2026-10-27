@@ -31,7 +31,7 @@
 
       <div class="active-group-label" id="active-group-label"></div>
 
-      <!-- 학사일정 변경 알림 -->
+      <!-- 일정 변경 알림 (내 학교 학사일정 / 그룹원이 바꾼 그룹 일정) -->
       <div class="sync-notice hidden" id="sync-notice" role="status">
         <div class="sync-notice-header">
           <span class="sync-notice-title" id="sync-notice-title"></span>
@@ -200,6 +200,40 @@
       </div>
     </div>
 
+    <!-- 내 학교 변경 화면 -->
+    <div id="school-change-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="school-change-back-btn" aria-label="뒤로가기">←</button>
+            <h1 id="school-change-title">내 학교 변경</h1>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">지금 학교</div>
+            <div class="current-school" id="current-school-name"></div>
+
+            <div class="field-label">새 학교</div>
+            <div class="school-search-box">
+              <span class="field-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6" />
+                  <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+              </span>
+              <input type="text" id="school-change-search-input" placeholder="학교 이름을 검색하세요" />
+            </div>
+            <div class="school-list" id="school-change-list"></div>
+            <div class="school-change-hint">참여 중인 그룹에도 바꾼 학교의 학사일정이 표시돼요</div>
+          </div>
+
+          <div class="footer-area">
+            <button class="primary-btn" id="school-change-submit-btn" disabled>이 학교로 변경</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 메뉴 -->
     <div class="menu-overlay hidden" id="menu-overlay"></div>
     <nav class="menu-drawer hidden" id="menu-drawer">
@@ -211,7 +245,8 @@
       </div>
       <div class="menu-divider"></div>
       <button class="menu-item" id="menu-add-group-btn">+ 그룹 추가 (생성/참여)</button>
-      <button class="menu-item hidden" id="menu-notify-btn">학사일정 변경 알림 받기</button>
+      <button class="menu-item" id="menu-school-btn">내 학교 변경</button>
+      <button class="menu-item hidden" id="menu-notify-btn">일정 변경 알림 받기</button>
       <div class="menu-divider"></div>
       <button class="menu-logout-btn" id="menu-logout-btn">로그아웃</button>
     </nav>
@@ -220,7 +255,7 @@
  <script type="module">
     import { renderCalendar, getColorClass } from "./js/calendar.js";
     import { loadHolidays } from "./js/holidays.js";
-    import { signOut, getCurrentUser } from "./js/auth.js";
+    import { signOut, getCurrentUser, updateMySchool } from "./js/auth.js";
     import {
       createGroup,
       findGroupIdByCode,
@@ -241,8 +276,9 @@
       updateMemberName as dbUpdateMemberName,
       updateMemberSchoolInfo,
     } from "./js/db.js";
-    import { getSchoolSchedule } from "./js/neisApi.js";
+    import { getSchoolSchedule, searchSchools } from "./js/neisApi.js";
     import { checkSchoolScheduleUpdates, formatScheduleChange } from "./js/scheduleSync.js";
+    import { watchGroupEvents, formatGroupEventChange } from "./js/realtime.js";
 
     let currentUser = null;
     // 온보딩에서 선택한 내 학교 ({name, code, officeCode, region}), 건너뛰었으면 null
@@ -272,11 +308,19 @@
     let lastSchoolSyncAt = 0;
     // 알림 배너에 한 번에 보여줄 최대 변경 건수
     const MAX_NOTICE_ITEMS = 5;
+    // 그룹 일정 변경 지켜보기를 멈추는 함수, 지금 지켜보고 있는 그룹 목록 (그룹을 만들거나 나가면 다시 시작)
+    let stopGroupWatch = () => {};
+    let watchedGroupKey = null;
+    // 브라우저 알림을 보낼지 (메뉴에서 켜고 끔). 브라우저 알림 권한은 페이지에서 되돌릴 수 없어서,
+    // 권한과 별개로 켜짐/꺼짐 설정을 사용자별로 저장해둠
+    const NOTIFY_SETTING_PREFIX = "wendy:notifyEnabled";
+    let notifyEnabled = true;
 
     const calendarView = document.getElementById("calendar-view");
     const addEventView = document.getElementById("add-event-view");
     const dayDetailView = document.getElementById("day-detail-view");
     const groupAddView = document.getElementById("group-add-view");
+    const schoolChangeView = document.getElementById("school-change-view");
     const grid = document.getElementById("calendar-grid");
     const legend = document.getElementById("legend");
     const monthTitle = document.getElementById("month-title");
@@ -330,6 +374,7 @@
       addEventView.classList.toggle("hidden", view !== "add-event");
       dayDetailView.classList.toggle("hidden", view !== "day-detail");
       groupAddView.classList.toggle("hidden", view !== "group-add");
+      schoolChangeView.classList.toggle("hidden", view !== "school-change");
     }
 
     function updateEmptyState() {
@@ -400,6 +445,7 @@
 
     async function loadMyGroups() {
       myGroups = await getMyGroups();
+      restartGroupWatch();
       if (viewMode === "group") {
         if (!activeGroup || !myGroups.some((g) => g.groupId === activeGroup.groupId)) {
           // 보고 있던 그룹에서 나갔거나 삭제됨 -> 홈(개인 캘린더)으로 되돌아감
@@ -590,14 +636,54 @@
       // 캐시에 남아 있는 예전 학사일정을 버리고 다시 불러와서, 바뀐 내용이 달력에 바로 보이게 함
       schoolScheduleCache.clear();
       loadSchoolEvents();
-      showScheduleNotice(changes);
+      showNotice(
+        `${mySchool.name} 학사일정이 변경됐어요 (${changes.length}건)`,
+        changes.map(formatScheduleChange),
+        "Wendy - 학사일정 변경",
+      );
     }
 
-    function showScheduleNotice(changes) {
-      const lines = changes.map(formatScheduleChange);
+    /**
+     * 내 그룹 목록이 바뀌었으면 그룹 일정 변경 지켜보기를 새 목록으로 다시 시작합니다.
+     */
+    function restartGroupWatch() {
+      const key = myGroups.map((g) => `${g.groupId}:${g.memberId}`).sort().join(",");
+      if (key === watchedGroupKey) return;
+      watchedGroupKey = key;
+      stopGroupWatch();
+      stopGroupWatch = watchGroupEvents(currentUser.id, myGroups, handleGroupEventChanges);
+    }
+
+    /**
+     * 그룹 일정이 바뀌면 (실시간 또는 지난 접속 이후) 보고 있는 그룹 캘린더를 새로 불러오고,
+     * 다른 그룹원이 바꾼 일정이 있으면 알림을 띄웁니다. 내가 바꾼 일정은 알리지 않습니다.
+     */
+    async function handleGroupEventChanges(changes) {
+      const others = changes.filter((change) => !change.isMine);
+      if (others.length > 0) {
+        const groupNames = [...new Set(others.map((change) => change.groupName))];
+        const isSingleGroup = groupNames.length === 1;
+        showNotice(
+          isSingleGroup
+            ? `${groupNames[0]} 일정이 변경됐어요 (${others.length}건)`
+            : `그룹 일정이 변경됐어요 (${others.length}건)`,
+          others.map((change) => (isSingleGroup ? "" : `[${change.groupName}] `) + formatGroupEventChange(change)),
+          "Wendy - 그룹 일정 변경",
+        );
+      }
+
+      // 다른 기기에서 내가 바꾼 일정도 달력에는 반영되도록, 보고 있는 그룹이면 누가 바꿨든 새로 불러옴
+      if (viewMode !== "group" || !activeGroup || !changes.some((change) => change.groupId === activeGroup.groupId)) return;
+      await loadCalendarData();
+      if (!dayDetailView.classList.contains("hidden") && activeDateKey) {
+        openDayDetailView(activeDateKey);
+      }
+    }
+
+    function showNotice(title, lines, notificationTitle) {
       const moreCount = lines.length - MAX_NOTICE_ITEMS;
 
-      syncNoticeTitle.textContent = `${mySchool.name} 학사일정이 변경됐어요 (${changes.length}건)`;
+      syncNoticeTitle.textContent = title;
       syncNoticeList.innerHTML = "";
       lines.slice(0, MAX_NOTICE_ITEMS).forEach((line) => {
         const item = document.createElement("li");
@@ -612,11 +698,16 @@
       }
       syncNotice.classList.remove("hidden");
 
-      // 다른 탭을 보고 있을 때는 브라우저 알림으로도 알려줌 (메뉴에서 알림을 허용한 경우만)
-      if ("Notification" in window && Notification.permission === "granted" && document.visibilityState === "hidden") {
+      // 다른 탭을 보고 있을 때는 브라우저 알림으로도 알려줌 (메뉴에서 알림을 켜둔 경우만)
+      if (
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        notifyEnabled &&
+        document.visibilityState === "hidden"
+      ) {
         try {
           const body = lines.slice(0, 3).join("\n") + (lines.length > 3 ? `\n외 ${lines.length - 3}건` : "");
-          new Notification("Wendy - 학사일정 변경", { body });
+          new Notification(notificationTitle, { body });
         } catch (err) {
           // 일부 모바일 브라우저는 페이지에서 바로 알림을 만들 수 없음 - 화면 배너로만 알림
         }
@@ -627,22 +718,47 @@
       syncNotice.classList.add("hidden");
     });
 
-    function updateNotifyMenu() {
-      const supported = "Notification" in window;
-      menuNotifyBtn.classList.toggle("hidden", !supported || !mySchool);
-      if (supported) {
-        menuNotifyBtn.textContent =
-          Notification.permission === "granted" ? "학사일정 변경 알림: 켜짐" : "학사일정 변경 알림 받기";
+    function loadNotifySetting() {
+      try {
+        // 저장된 값이 없으면 켜짐 (예전에 알림을 허용해둔 사용자는 그대로 받도록)
+        notifyEnabled = localStorage.getItem(`${NOTIFY_SETTING_PREFIX}:${currentUser.id}`) !== "off";
+      } catch (err) {
+        notifyEnabled = true;
       }
     }
 
+    function saveNotifySetting() {
+      try {
+        localStorage.setItem(`${NOTIFY_SETTING_PREFIX}:${currentUser.id}`, notifyEnabled ? "on" : "off");
+      } catch (err) {
+        // 저장이 막혀 있으면 이번 접속 동안만 설정이 유지됨
+      }
+    }
+
+    function updateNotifyMenu() {
+      const supported = "Notification" in window;
+      menuNotifyBtn.classList.toggle("hidden", !supported);
+      if (!supported) return;
+      menuNotifyBtn.textContent =
+        Notification.permission === "granted"
+          ? `일정 변경 알림: ${notifyEnabled ? "켜짐" : "꺼짐"}`
+          : "일정 변경 알림 받기";
+    }
+
     menuNotifyBtn.addEventListener("click", async () => {
-      if (Notification.permission === "granted") return;
-      if (Notification.permission === "denied") {
+      if (Notification.permission === "granted") {
+        notifyEnabled = !notifyEnabled;
+      } else if (Notification.permission === "denied") {
         alert("알림이 차단되어 있어요. 브라우저 주소창 왼쪽의 사이트 설정에서 알림을 허용해주세요.");
         return;
+      } else {
+        if ((await Notification.requestPermission()) !== "granted") {
+          updateNotifyMenu();
+          return;
+        }
+        notifyEnabled = true;
       }
-      await Notification.requestPermission();
+      saveNotifySetting();
       updateNotifyMenu();
     });
 
@@ -1230,6 +1346,142 @@
       openGroupAddView();
     });
 
+    const menuSchoolBtn = document.getElementById("menu-school-btn");
+    const schoolChangeTitle = document.getElementById("school-change-title");
+    const currentSchoolName = document.getElementById("current-school-name");
+    const schoolChangeSearchInput = document.getElementById("school-change-search-input");
+    const schoolChangeList = document.getElementById("school-change-list");
+    const schoolChangeSubmitBtn = document.getElementById("school-change-submit-btn");
+
+    // 내 학교 변경 화면에서 고른 학교
+    let selectedNewSchool = null;
+    let schoolSearchTimer = null;
+    // 검색어를 빠르게 바꿀 때, 늦게 도착한 이전 검색 결과가 화면을 덮어쓰지 않도록 하는 요청 번호
+    let schoolSearchSeq = 0;
+
+    function isSameSchool(a, b) {
+      return String(a.code) === String(b.code) && String(a.officeCode) === String(b.officeCode);
+    }
+
+    function updateSchoolMenu() {
+      menuSchoolBtn.textContent = mySchool ? "내 학교 변경" : "내 학교 등록";
+    }
+
+    function updateSchoolSubmitState() {
+      schoolChangeSubmitBtn.disabled = !selectedNewSchool || Boolean(mySchool && isSameSchool(mySchool, selectedNewSchool));
+    }
+
+    function renderSchoolResults(schools) {
+      schoolChangeList.innerHTML = "";
+      schools.forEach((school) => {
+        const isCurrent = mySchool && isSameSchool(mySchool, school);
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "school-list-item";
+        if (selectedNewSchool && isSameSchool(selectedNewSchool, school)) item.classList.add("selected");
+
+        // 이름이 같은 학교가 여러 지역에 있을 수 있어서 주소도 같이 보여줌
+        const info = document.createElement("span");
+        info.className = "school-list-info";
+        const name = document.createElement("span");
+        name.textContent = school.name;
+        const region = document.createElement("span");
+        region.className = "school-list-region";
+        region.textContent = school.region || "";
+        info.append(name, region);
+
+        const tail = document.createElement("span");
+        tail.className = isCurrent ? "school-list-current" : "chevron";
+        tail.textContent = isCurrent ? "지금 학교" : "›";
+
+        item.append(info, tail);
+        item.addEventListener("click", () => {
+          selectedNewSchool = school;
+          updateSchoolSubmitState();
+          renderSchoolResults(schools);
+        });
+        schoolChangeList.appendChild(item);
+      });
+    }
+
+    function openSchoolChangeView() {
+      selectedNewSchool = null;
+      clearTimeout(schoolSearchTimer);
+      schoolSearchSeq += 1;
+      schoolChangeSearchInput.value = "";
+      schoolChangeList.innerHTML = "";
+      schoolChangeTitle.textContent = mySchool ? "내 학교 변경" : "내 학교 등록";
+      currentSchoolName.textContent = mySchool ? mySchool.name : "아직 등록한 학교가 없어요";
+      currentSchoolName.classList.toggle("empty", !mySchool);
+      updateSchoolSubmitState();
+      showView("school-change");
+      schoolChangeSearchInput.focus();
+    }
+
+    schoolChangeSearchInput.addEventListener("input", () => {
+      clearTimeout(schoolSearchTimer);
+      const keyword = schoolChangeSearchInput.value.trim();
+      const requestId = ++schoolSearchSeq;
+      selectedNewSchool = null;
+      updateSchoolSubmitState();
+
+      if (!keyword) {
+        schoolChangeList.innerHTML = "";
+        return;
+      }
+
+      schoolSearchTimer = setTimeout(async () => {
+        let schools;
+        try {
+          schools = await searchSchools(keyword);
+        } catch (err) {
+          if (requestId === schoolSearchSeq) {
+            schoolChangeList.innerHTML = '<div class="school-empty-msg">학교 검색 중 오류가 발생했어요</div>';
+          }
+          return;
+        }
+        if (requestId !== schoolSearchSeq) return;
+        if (schools.length === 0) {
+          schoolChangeList.innerHTML = '<div class="school-empty-msg">검색 결과가 없어요</div>';
+          return;
+        }
+        renderSchoolResults(schools);
+      }, 300);
+    });
+
+    schoolChangeSubmitBtn.addEventListener("click", async () => {
+      if (!selectedNewSchool) return;
+      const newSchool = selectedNewSchool;
+
+      schoolChangeSubmitBtn.disabled = true;
+      schoolChangeSubmitBtn.textContent = "변경하는 중...";
+      try {
+        currentUser = await updateMySchool(newSchool);
+        mySchool = newSchool;
+        // 참여 중인 모든 그룹의 내 멤버 정보에도 새 학교를 반영 (그룹원들이 내 새 학교 학사일정을 보게 됨)
+        await syncMySchoolToGroups();
+        updateSchoolMenu();
+        showView("calendar");
+        await loadCalendarData();
+        // 새 학교의 학사일정 변경 알림 기준을 바로 저장해둠 (학교별로 따로 저장되고, 처음 확인할 때는 알림 없음)
+        syncSchoolSchedule();
+      } catch (err) {
+        alert(err.message || "학교를 변경하는 중 오류가 발생했어요");
+        updateSchoolSubmitState();
+      } finally {
+        schoolChangeSubmitBtn.textContent = "이 학교로 변경";
+      }
+    });
+
+    menuSchoolBtn.addEventListener("click", () => {
+      closeMenu();
+      openSchoolChangeView();
+    });
+
+    document.getElementById("school-change-back-btn").addEventListener("click", () => {
+      showView("calendar");
+    });
+
     document.getElementById("menu-logout-btn").addEventListener("click", async () => {
       try {
         await signOut();
@@ -1250,7 +1502,9 @@
       await syncMySchoolToGroups();
       await loadCalendarData();
 
+      loadNotifySetting();
       updateNotifyMenu();
+      updateSchoolMenu();
       syncSchoolSchedule();
       setInterval(syncSchoolSchedule, SCHOOL_SYNC_INTERVAL);
       document.addEventListener("visibilitychange", () => {
