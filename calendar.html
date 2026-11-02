@@ -270,6 +270,38 @@
       </div>
     </div>
 
+    <!-- 그룹 관리 화면 (초대 코드 복사 / 그룹장: 그룹 이름 변경, 멤버 내보내기) -->
+    <div id="group-manage-view" class="hidden">
+      <div class="onboarding-center">
+        <div class="onboarding-card">
+          <div class="page-header">
+            <button class="back-btn" id="group-manage-back-btn" aria-label="뒤로가기">←</button>
+            <h1>그룹 관리</h1>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">그룹 이름</div>
+            <form class="group-rename-row hidden" id="group-rename-form">
+              <div class="field-box">
+                <input type="text" id="group-rename-input" placeholder="예: 1학년 3반" />
+              </div>
+              <button type="submit" class="secondary-btn" id="group-rename-btn" disabled>변경</button>
+            </form>
+            <div class="color-change-group" id="group-manage-name"></div>
+
+            <div class="field-label">초대 코드</div>
+            <div class="invite-code-row">
+              <span class="invite-code" id="group-manage-code"></span>
+              <button type="button" class="secondary-btn" id="group-code-copy-btn">복사</button>
+            </div>
+
+            <div class="field-label">멤버</div>
+            <div class="group-member-list" id="group-member-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 메뉴 -->
     <div class="menu-overlay hidden" id="menu-overlay"></div>
     <nav class="menu-drawer hidden" id="menu-drawer">
@@ -281,6 +313,7 @@
       </div>
       <div class="menu-divider"></div>
       <button class="menu-item" id="menu-add-group-btn">+ 그룹 추가 (생성/참여)</button>
+      <button class="menu-item hidden" id="menu-manage-btn">이 그룹 관리 (초대 코드·멤버)</button>
       <button class="menu-item hidden" id="menu-color-btn">이 그룹에서 내 색상 변경</button>
       <button class="menu-item" id="menu-school-btn">내 학교 변경</button>
       <button class="menu-item hidden" id="menu-notify-btn">일정 변경 알림 받기</button>
@@ -301,6 +334,8 @@
       deleteGroup as dbDeleteGroup,
       joinGroupMember,
       joinGroupByCode,
+      renameGroup as dbRenameGroup,
+      kickGroupMember as dbKickGroupMember,
       getGroupMembers,
       getGroupUsedColors,
       getGroupEvents,
@@ -317,7 +352,7 @@
     } from "./js/db.js";
     import { getSchoolSchedule, searchSchools } from "./js/neisApi.js";
     import { checkSchoolScheduleUpdates, formatScheduleChange } from "./js/scheduleSync.js";
-    import { watchGroupEvents, formatGroupEventChange } from "./js/realtime.js";
+    import { watchGroupEvents, formatGroupEventChange, watchPersonalEvents } from "./js/realtime.js";
 
     let currentUser = null;
     // 온보딩에서 선택한 내 학교 ({name, code, officeCode, region}), 건너뛰었으면 null
@@ -350,6 +385,9 @@
     // 그룹 일정 변경 지켜보기를 멈추는 함수, 지금 지켜보고 있는 그룹 목록 (그룹을 만들거나 나가면 다시 시작)
     let stopGroupWatch = () => {};
     let watchedGroupKey = null;
+    // 다른 탭/컴퓨터에서 개인 일정이 바뀌면 잠깐 기다렸다가 한 번에 다시 불러옴 (기간 일정은 여러 개가 연달아 들어오므로)
+    const PERSONAL_RELOAD_DELAY = 500;
+    let personalReloadTimer = null;
     // 브라우저 알림을 보낼지 (메뉴에서 켜고 끔). 브라우저 알림 권한은 페이지에서 되돌릴 수 없어서,
     // 권한과 별개로 켜짐/꺼짐 설정을 사용자별로 저장해둠
     const NOTIFY_SETTING_PREFIX = "wendy:notifyEnabled";
@@ -361,6 +399,7 @@
     const groupAddView = document.getElementById("group-add-view");
     const schoolChangeView = document.getElementById("school-change-view");
     const colorChangeView = document.getElementById("color-change-view");
+    const groupManageView = document.getElementById("group-manage-view");
     const grid = document.getElementById("calendar-grid");
     const legend = document.getElementById("legend");
     const monthTitle = document.getElementById("month-title");
@@ -380,6 +419,7 @@
     const syncNoticeList = document.getElementById("sync-notice-list");
     const menuNotifyBtn = document.getElementById("menu-notify-btn");
     const menuColorBtn = document.getElementById("menu-color-btn");
+    const menuManageBtn = document.getElementById("menu-manage-btn");
     let selectedEventColor = "gray";
 
     const today = new Date();
@@ -417,6 +457,7 @@
       groupAddView.classList.toggle("hidden", view !== "group-add");
       schoolChangeView.classList.toggle("hidden", view !== "school-change");
       colorChangeView.classList.toggle("hidden", view !== "color-change");
+      groupManageView.classList.toggle("hidden", view !== "group-manage");
     }
 
     function updateEmptyState() {
@@ -445,6 +486,7 @@
       menuHomeBtn.classList.toggle("active", viewMode === "personal");
       // 색상은 그룹마다 따로 정하므로, 그룹 캘린더를 보고 있을 때만 그 그룹의 내 색상을 바꿀 수 있게 함
       menuColorBtn.classList.toggle("hidden", !(viewMode === "group" && activeGroup));
+      menuManageBtn.classList.toggle("hidden", !(viewMode === "group" && activeGroup));
 
       if (myGroups.length === 0) {
         menuGroupList.innerHTML = '<div class="menu-empty">참여 중인 그룹이 없어요</div>';
@@ -521,6 +563,15 @@
           getGroupMembers(activeGroup.groupId),
           getGroupEvents(activeGroup.groupId),
         ]);
+        if (!membersData.some((member) => member.id === activeGroup.memberId)) {
+          // 그룹장이 나를 내보냈거나 그룹이 삭제돼서 더 이상 볼 수 없는 그룹 -> 홈(개인 캘린더)으로 되돌아감
+          alert(`"${activeGroup.groupName}" 그룹에서 나가게 됐어요`);
+          viewMode = "personal";
+          activeGroup = null;
+          showView("calendar");
+          await loadMyGroups();
+          return loadCalendarData();
+        }
         groupMembers = membersData;
         events = eventsData.map((event) => ({
           id: event.id,
@@ -722,6 +773,30 @@
       if (!dayDetailView.classList.contains("hidden") && activeDateKey) {
         openDayDetailView(activeDateKey);
       }
+    }
+
+    /**
+     * 내 개인 일정이 바뀌면 (다른 탭이나 다른 컴퓨터에서 바꾼 경우 포함) 개인 캘린더를 새로 불러옵니다.
+     * 그룹 캘린더를 보고 있을 때는 개인 일정이 안 보이므로 건너뜀 (홈으로 돌아올 때 새로 불러옴).
+     */
+    function handlePersonalEventChange(payload) {
+      if (viewMode !== "personal") return;
+      // 삭제는 모든 사용자의 개인 일정 삭제가 id만 담겨 오므로, 지금 보이는 내 일정일 때만 반영
+      if (payload.eventType === "DELETE" && !events.some((event) => event.id === payload.old.id)) return;
+
+      clearTimeout(personalReloadTimer);
+      personalReloadTimer = setTimeout(async () => {
+        if (viewMode !== "personal") return;
+        try {
+          await loadCalendarData();
+        } catch (err) {
+          console.warn("바뀐 개인 일정을 불러오지 못했어요", err);
+          return;
+        }
+        if (!dayDetailView.classList.contains("hidden") && activeDateKey) {
+          openDayDetailView(activeDateKey);
+        }
+      }, PERSONAL_RELOAD_DELAY);
     }
 
     function showNotice(title, lines, notificationTitle) {
@@ -1337,7 +1412,7 @@
           await loadMyGroups();
           await switchActiveGroup(group.id);
           showView("calendar");
-          alert(`"${name}" 그룹이 생성됐어요!\n초대 코드: ${group.code}\n\n이 코드를 그룹원에게 공유해주세요. (메뉴의 참여 중인 그룹에서 코드를 다시 확인할 수 있어요)`);
+          alert(`"${name}" 그룹이 생성됐어요!\n초대 코드: ${group.code}\n\n이 코드를 그룹원에게 공유해주세요. (메뉴의 "이 그룹 관리"에서 코드를 복사할 수 있어요)`);
         } else {
           const code = groupCodeInput.value.trim().toUpperCase();
           if (!code) {
@@ -1466,6 +1541,147 @@
     });
 
     document.getElementById("color-change-back-btn").addEventListener("click", () => {
+      showView("calendar");
+    });
+
+    const groupManageName = document.getElementById("group-manage-name");
+    const groupRenameForm = document.getElementById("group-rename-form");
+    const groupRenameInput = document.getElementById("group-rename-input");
+    const groupRenameBtn = document.getElementById("group-rename-btn");
+    const groupManageCode = document.getElementById("group-manage-code");
+    const groupCodeCopyBtn = document.getElementById("group-code-copy-btn");
+    const groupMemberList = document.getElementById("group-member-list");
+
+    // 그룹 관리 화면에서 보고 있는 그룹 (myGroups 중 하나, 지금 보고 있는 그룹 캘린더의 그룹)
+    let manageGroup = null;
+    let copyResetTimer = null;
+
+    function groupOwnerErrorMessage(err, fallback) {
+      if (err.code === "PGRST202") {
+        return "DB에 그룹장 기능 함수가 아직 없어요. Supabase SQL Editor에서 supabase/group_owner.sql을 실행해주세요.";
+      }
+      return err.message || fallback;
+    }
+
+    /**
+     * 그룹 관리 화면의 그룹 이름, 초대 코드, 멤버 목록을 다시 그립니다.
+     * 멤버 목록은 그룹 캘린더를 불러올 때 받아둔 groupMembers를 씁니다.
+     */
+    function renderGroupManageView() {
+      const group = manageGroup;
+      groupManageName.textContent = group.groupName;
+      groupManageName.classList.toggle("hidden", group.isOwner);
+      groupRenameForm.classList.toggle("hidden", !group.isOwner);
+      groupManageCode.textContent = group.groupCode;
+
+      groupMemberList.innerHTML = "";
+      groupMembers.forEach((member) => {
+        const item = document.createElement("div");
+        item.className = "group-member-item";
+
+        const dot = document.createElement("span");
+        dot.className = `legend-dot ${getColorClass(member.color)}`;
+        const name = document.createElement("span");
+        name.className = "group-member-name";
+        name.textContent = member.name;
+        item.append(dot, name);
+
+        if (member.user_id === group.ownerId) {
+          const tag = document.createElement("span");
+          tag.className = "group-member-tag";
+          tag.textContent = "그룹장";
+          item.appendChild(tag);
+        }
+        if (member.id === group.memberId) {
+          const tag = document.createElement("span");
+          tag.className = "group-member-tag me";
+          tag.textContent = "나";
+          item.appendChild(tag);
+        } else if (group.isOwner) {
+          const kickBtn = document.createElement("button");
+          kickBtn.type = "button";
+          kickBtn.className = "event-action-btn danger";
+          kickBtn.textContent = "내보내기";
+          kickBtn.addEventListener("click", () => handleKickMember(member));
+          item.appendChild(kickBtn);
+        }
+
+        groupMemberList.appendChild(item);
+      });
+    }
+
+    function openGroupManageView(group) {
+      manageGroup = group;
+      groupRenameInput.value = group.groupName;
+      groupRenameBtn.disabled = true;
+      clearTimeout(copyResetTimer);
+      groupCodeCopyBtn.textContent = "복사";
+      renderGroupManageView();
+      showView("group-manage");
+    }
+
+    groupRenameInput.addEventListener("input", () => {
+      const name = groupRenameInput.value.trim();
+      groupRenameBtn.disabled = !name || name === manageGroup.groupName;
+    });
+
+    groupRenameForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = groupRenameInput.value.trim();
+      if (!name || name === manageGroup.groupName) return;
+
+      groupRenameBtn.disabled = true;
+      try {
+        await dbRenameGroup(manageGroup.groupId, name);
+      } catch (err) {
+        alert(groupOwnerErrorMessage(err, "그룹 이름을 바꾸는 중 오류가 발생했어요"));
+        groupRenameBtn.disabled = false;
+        return;
+      }
+      // 메뉴의 그룹 목록, 캘린더 위 그룹 이름이 새 이름으로 보이도록 다시 불러옴
+      await loadMyGroups();
+      manageGroup = myGroups.find((g) => g.groupId === manageGroup.groupId) || manageGroup;
+      groupRenameInput.value = manageGroup.groupName;
+      updateEmptyState();
+      renderGroupManageView();
+    });
+
+    async function handleKickMember(member) {
+      if (!confirm(`"${member.name}"님을 그룹에서 내보낼까요?\n이 멤버가 그룹에 올린 일정도 함께 삭제돼요.`)) return;
+      try {
+        await dbKickGroupMember(member.id);
+      } catch (err) {
+        alert(groupOwnerErrorMessage(err, "멤버를 내보내는 중 오류가 발생했어요"));
+        return;
+      }
+      // 범례, 캘린더 일정, 멤버 목록에서 내보낸 멤버가 빠지도록 다시 불러옴
+      await loadCalendarData();
+      renderGroupManageView();
+    }
+
+    groupCodeCopyBtn.addEventListener("click", async () => {
+      const code = manageGroup.groupCode;
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (err) {
+        // https가 아닌 주소 등 클립보드를 쓸 수 없는 환경에서는 직접 복사할 수 있게 보여줌
+        prompt("아래 초대 코드를 복사해주세요", code);
+        return;
+      }
+      groupCodeCopyBtn.textContent = "복사됨";
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        groupCodeCopyBtn.textContent = "복사";
+      }, 1500);
+    });
+
+    menuManageBtn.addEventListener("click", () => {
+      if (!activeGroup) return;
+      closeMenu();
+      openGroupManageView(activeGroup);
+    });
+
+    document.getElementById("group-manage-back-btn").addEventListener("click", () => {
       showView("calendar");
     });
 
@@ -1638,6 +1854,7 @@
       }
       mySchool = currentUser.user_metadata?.school || null;
       watchAccountChange();
+      watchPersonalEvents(currentUser.id, handlePersonalEventChange);
       await loadMyGroups();
       await syncMySchoolToGroups();
       await loadCalendarData();

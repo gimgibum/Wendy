@@ -675,3 +675,74 @@
   font-size: 13px;
   padding: 24px 0;
 }
+
+.group-rename-row {
+  display: flex;
+  gap: 8px;
+}
+
+.group-rename-row .field-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-rename-row .secondary-btn,
+.invite-code-row .secondary-btn {
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invite-code {
+  flex: 1;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: #f6f7f9;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #1c1c1e;
+}
+
+.group-member-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-member-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 4px;
+  border-bottom: 1px solid #f0f0f2;
+  font-size: 13px;
+  color: #1c1c1e;
+}
+
+.group-member-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-member-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #3348ff;
+  background: #f0f2ff;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.group-member-tag.me {
+  color: #6f7c8e;
+  background: #f6f7f9;
+}

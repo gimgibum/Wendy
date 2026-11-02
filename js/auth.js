@@ -18,8 +18,28 @@ function assertValidUsername(username) {
   }
 }
 
+const DUPLICATE_USERNAME_MESSAGE = "이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요";
+
+/**
+ * Supabase Auth 회원가입 에러(영어)를 화면에 보여줄 한국어 문장으로 바꿉니다.
+ */
+function toSignUpErrorMessage(error) {
+  if (error.code === "user_already_exists" || /already registered/i.test(error.message || "")) {
+    return DUPLICATE_USERNAME_MESSAGE;
+  }
+  if (error.code === "weak_password") {
+    return "비밀번호가 너무 쉬워요. 더 길거나 복잡한 비밀번호를 입력해주세요";
+  }
+  if (error.status === 429) {
+    return "잠시 후 다시 시도해주세요 (요청이 너무 많아요)";
+  }
+  console.warn("회원가입 오류", error);
+  return "회원가입 중 오류가 발생했어요. 잠시 후 다시 시도해주세요";
+}
+
 /**
  * 아이디/비밀번호로 회원가입합니다.
+ * 이미 있는 아이디거나 Supabase에서 막히면 한국어 메시지로 에러를 던집니다.
  * @returns {Promise<{user: object|null, session: object|null}>}
  */
 export async function signUp(username, password) {
@@ -29,7 +49,9 @@ export async function signUp(username, password) {
     password,
     options: { data: { username: username.trim() } },
   });
-  if (error) throw error;
+  if (error) throw new Error(toSignUpErrorMessage(error));
+  // "Confirm email"이 켜져 있으면 이미 있는 아이디여도 에러 없이 identities가 빈 가짜 유저가 옴
+  if (data.user && data.user.identities?.length === 0) throw new Error(DUPLICATE_USERNAME_MESSAGE);
   return data;
 }
 

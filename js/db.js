@@ -71,8 +71,34 @@ export async function getMyGroups() {
     groupId: row.group_id,
     groupName: row.groups.name,
     groupCode: row.groups.code,
+    ownerId: row.groups.created_by,
     isOwner: row.groups.created_by === userData.user.id,
   }));
+}
+
+/**
+ * 그룹 이름을 바꿉니다 (그룹장만 가능).
+ * update_group_name RPC가 로그인한 계정이 그룹을 만든 사람인지 확인한 뒤 바꿉니다. (supabase/group_owner.sql)
+ * @returns {Promise<object>} 바뀐 그룹 정보
+ */
+export async function renameGroup(groupId, name) {
+  const { data, error } = await supabase.rpc("update_group_name", {
+    p_group_id: groupId,
+    p_name: name,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 그룹장이 다른 멤버를 그룹에서 내보냅니다 (그 멤버가 이 그룹에 올린 일정도 함께 삭제됨).
+ * kick_group_member RPC가 로그인한 계정이 그룹장인지 확인합니다. (supabase/group_owner.sql)
+ */
+export async function kickGroupMember(memberId) {
+  const { error } = await supabase.rpc("kick_group_member", {
+    p_member_id: memberId,
+  });
+  if (error) throw error;
 }
 
 /**

@@ -229,6 +229,30 @@ export function watchGroupEvents(userId, groups, onChanges) {
   };
 }
 
+/**
+ * 내 개인 일정이 추가/수정/삭제되면 알려줍니다 (다른 탭이나 다른 컴퓨터에서 바꾼 경우 포함).
+ * ⚠️ Supabase에서 personal_events 테이블의 Realtime이 켜져 있어야 함 (supabase/realtime.sql 실행)
+ * @param {string} userId
+ * @param {(payload: object) => void} onChange Supabase Realtime payload (eventType, new, old)
+ *   삭제는 Supabase에서 필터를 걸 수 없어서 다른 사람 일정 삭제도 id만 담겨 오므로, 내 일정인지는 받는 쪽에서 판단
+ * @returns {() => void} 지켜보기를 멈추는 함수
+ */
+export function watchPersonalEvents(userId, onChange) {
+  const filter = `user_id=eq.${userId}`;
+  const channel = supabase
+    .channel(`personal-events:${userId}:${++channelSeq}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "personal_events", filter }, onChange)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "personal_events", filter }, onChange)
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "personal_events" }, onChange)
+    .subscribe((status, err) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.warn("개인 일정 실시간 연결에 실패했어요", err);
+      }
+    });
+
+  return () => supabase.removeChannel(channel);
+}
+
 function formatDate(ymd) {
   const [yyyy, mm, dd] = ymd.split("-").map(Number);
   const date = new Date(yyyy, mm - 1, dd);

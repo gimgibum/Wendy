@@ -111,8 +111,8 @@
 
     <div class="card">
 
-        <!-- 로그인 -->
-        <div id="login-form">
+        <!-- 로그인 (form 이라서 입력칸에서 Enter 를 누르면 바로 로그인됨) -->
+        <form id="login-form" novalidate>
             <div class="title-area">
                 <h1>Login</h1>
 
@@ -126,14 +126,14 @@
             </div>
             <div class="error-msg" id="login-error"></div>
 
-            <button class="submit-btn" id="login-btn">로그인</button>
+            <button type="submit" class="submit-btn" id="login-btn">로그인</button>
             <div class="switch-text">
                 계정이 없으신가요? <span id="go-signup">회원가입</span>
             </div>
-        </div>
+        </form>
 
-        <!-- 회원가입-->
-        <div id="signup-form" class="hidden">
+        <!-- 회원가입 -->
+        <form id="signup-form" class="hidden" novalidate>
             <div class="title-area">
                 <h1>회원가입</h1>
             </div>
@@ -149,11 +149,11 @@
             </div>
             <div class="error-msg" id="signup-error"></div>
 
-            <button class="submit-btn" id="signup-btn">회원가입</button>
+            <button type="submit" class="submit-btn" id="signup-btn">회원가입</button>
             <div class="switch-text">
                 이미 계정이 있으신가요? <span id="go-login">로그인</span>
             </div>
-        </div>
+        </form>
 
     </div>
     <script type="module">
@@ -185,8 +185,9 @@
         signupError.textContent = ''; // 에러 메시지 초기화
       });
 
-      // 4. [기능] 로그인 버튼 클릭 이벤트
-      loginBtn.addEventListener('click', async () => {
+      // 4. [기능] 로그인 (버튼 클릭 또는 입력칸에서 Enter)
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value;
 
@@ -214,8 +215,9 @@
         }
       });
 
-      // 5. [기능] 회원가입 버튼 클릭 이벤트
-      signupBtn.addEventListener('click', async () => {
+      // 5. [기능] 회원가입 (버튼 클릭 또는 입력칸에서 Enter)
+      signupForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
         const username = document.getElementById('signup-username').value.trim();
         const password = document.getElementById('signup-password').value;
         const passwordConfirm = document.getElementById('signup-password-confirm').value;
