@@ -1,4 +1,4 @@
-//캘린더 그리드 및 일정 색상 칩 스타일
+// 달력 그리기
 import { getHolidayName } from "./holidays.js";
 
 const WEEKDAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -26,18 +26,8 @@ function toDateKey(year, month, day) {
   return `${year}-${mm}-${dd}`;
 }
 
-/**
- * 주어진 연/월의 달력 그리드를 렌더링합니다.
- * @param {HTMLElement} gridEl - 그리드를 렌더링할 컨테이너
- * @param {number} year
- * @param {number} month - 0부터 시작 (0 = 1월)
- * @param {Array} events - [{ date: 'YYYY-MM-DD', time, title, color }]
- * @param {Function} [onDayClick] - 날짜를 한 번(드래그 없이) 클릭했을 때 실행할 콜백(dateKey) - 일정 추가용
- * @param {Function} [onRangeSelect] - 여러 날짜를 드래그로 선택했을 때 실행할 콜백(fromDateKey, toDateKey)
- * @param {Function} [onDayDoubleClick] - 날짜를 더블클릭했을 때 실행할 콜백(dateKey) - 일정 보기용
- */
+// 달력 렌더링
 export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeSelect, onDayDoubleClick) {
-  // 콜백은 매 렌더링(달 이동 등)마다 최신 걸로 갱신 - 드래그 이벤트 리스너는 아래에서 한 번만 연결됨
   gridEl._onDayClick = onDayClick;
   gridEl._onRangeSelect = onRangeSelect;
   gridEl._onDayDoubleClick = onDayDoubleClick;
@@ -69,7 +59,7 @@ export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeS
 
   for (let i = 0; i < totalCells; i++) {
     const dayOffset = i - startOffset;
-    const weekdayIndex = i % 7; // 0 = 일요일 ... 6 = 토요일
+    const weekdayIndex = i % 7;
     let cellYear = year;
     let cellMonth = month;
     let dayNumber;
@@ -143,14 +133,7 @@ export function renderCalendar(gridEl, year, month, events, onDayClick, onRangeS
   }
 }
 
-/**
- * 캘린더 칸의 클릭/더블클릭/드래그를 처리합니다.
- * - 드래그 없이 한 번 클릭: onDayClick(dateKey) - 일정 추가
- * - 같은 칸을 빠르게 두 번 클릭: onDayDoubleClick(dateKey) - 그 날짜 일정 보기
- * - 드래그로 여러 칸 선택: onRangeSelect(fromDateKey, toDateKey) - 기간 일정 추가
- * gridEl은 달이 바뀌어도 재사용되는 같은 DOM 노드라서, 리스너는 한 번만 연결하고
- * 최신 콜백은 gridEl._onDayClick 등에서 매번 읽어옵니다.
- */
+// 클릭, 더블클릭, 드래그 선택
 function wireDragSelection(gridEl) {
   if (gridEl._dragWired) return;
   gridEl._dragWired = true;
@@ -202,7 +185,6 @@ function wireDragSelection(gridEl) {
     if (!dragStart) return;
     if (dragStart === dragEnd) {
       if (pendingClickTimer && pendingClickDate === dragStart) {
-        // 같은 칸을 짧은 시간 안에 다시 클릭 -> 더블클릭으로 처리
         clearTimeout(pendingClickTimer);
         pendingClickTimer = null;
         pendingClickDate = null;

@@ -1,20 +1,13 @@
--- 내 일정 저장/조회/수정/삭제 (events 테이블)
--- users.sql 을 먼저 실행한 뒤, Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하면 됩니다. (여러 번 실행해도 괜찮음)
-
--- 그룹에 가입하기 전에도 내 일정을 저장할 수 있도록 일정의 주인(user_id)을 추가하고
--- 그룹/멤버는 비워둘 수 있게 함
+-- 일정 테이블, RLS 정책 (users.sql 다음에 실행)
 alter table public.events
   add column if not exists user_id uuid references public.users(id) on delete cascade;
 alter table public.events alter column group_id drop not null;
 alter table public.events alter column member_id drop not null;
 create index if not exists events_user_id_date_idx on public.events (user_id, date);
 
--- 브라우저에서 테이블을 직접 읽거나 쓸 수 없게 막음.
--- 접근은 아래 함수로만 가능하고, 함수는 세션 토큰으로 본인 일정인지 확인함.
 alter table public.events enable row level security;
 revoke all on table public.events from anon, authenticated;
 
--- 내 일정 전체 조회 (날짜, 시간 순)
 create or replace function public.get_my_events(p_token uuid)
 returns setof public.events
 language plpgsql
@@ -33,7 +26,6 @@ begin
 end;
 $$;
 
--- 새 일정 등록 → 저장된 일정 한 줄 반환
 create or replace function public.create_event(
   p_token uuid,
   p_title text,
@@ -62,7 +54,6 @@ begin
 end;
 $$;
 
--- 내 일정 수정 → 수정된 일정 한 줄 반환 (내 일정이 아니면 에러)
 create or replace function public.update_event(
   p_token uuid,
   p_event_id uuid,
@@ -98,7 +89,6 @@ begin
 end;
 $$;
 
--- 내 일정 삭제 (내 일정이 아니면 아무것도 지우지 않음)
 create or replace function public.delete_event(p_token uuid, p_event_id uuid)
 returns void
 language plpgsql

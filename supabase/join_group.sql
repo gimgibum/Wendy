@@ -1,17 +1,4 @@
--- 초대 코드로 그룹 참여 (members 테이블에 내 멤버 정보 추가, js/db.js 의 joinGroupByCode)
--- Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하면 됩니다. (여러 번 실행해도 괜찮음)
---
--- 아직 멤버가 아닌 사용자는 groups/members 의 RLS 정책 때문에 members 에 직접 추가하면
--- "new row violates row-level security policy" 로 막히므로, 이 함수가 대신 추가함 (SECURITY DEFINER).
--- 대신 함수 안에서 초대 코드와 로그인한 계정(auth.uid())을 직접 확인하므로,
--- 코드를 아는 사람만, 그리고 본인 계정으로만 참여할 수 있음.
--- 매개변수 타입은 members 테이블의 컬럼 타입을 그대로 따름 (%TYPE, 실행 시 NOTICE 가 떠도 정상)
---
--- 함수 이름이 join_group 이 아닌 이유: DB 에 이미 같은 이름의 다른 함수(join_group)가 있어서 겹치지 않게 함.
--- 원래 있던 join_group 은 건드리지 않음.
-
--- 이 파일의 예전 버전(이름이 join_group)으로 만들어진 함수가 남아 있으면 지움
--- (첫 매개변수 이름이 p_invite_code 인 것만 지우므로, 원래 있던 join_group 은 그대로 남음)
+-- 초대 코드로 그룹 참여 (RPC)
 do $$
 declare
   v_fn regprocedure;
@@ -60,7 +47,6 @@ begin
     raise exception '존재하지 않는 초대 코드예요. 코드를 다시 확인해주세요.' using errcode = 'P0002';
   end if;
 
-  -- 앱은 23505 에러 메시지에 "color" 가 있으면 색상 중복, 없으면 이미 참여 중으로 안내함
   if exists (
     select 1 from public.members
     where members.group_id = v_group_id and members.user_id = v_user_id
@@ -83,6 +69,5 @@ begin
 end;
 $$;
 
--- 로그인한 사용자만 부를 수 있게 함 (로그인 안 한 anon 은 불가)
 revoke all on function public.join_group_with_code from public, anon;
 grant execute on function public.join_group_with_code to authenticated;

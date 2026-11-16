@@ -31,7 +31,7 @@
 
       <div class="active-group-label" id="active-group-label"></div>
 
-      <!-- 일정 변경 알림 (내 학교 학사일정 / 그룹원이 바꾼 그룹 일정) -->
+      <!-- 일정 변경 알림 -->
       <div class="sync-notice hidden" id="sync-notice" role="status">
         <div class="sync-notice-header">
           <span class="sync-notice-title" id="sync-notice-title"></span>
@@ -270,7 +270,7 @@
       </div>
     </div>
 
-    <!-- 그룹 관리 화면 (초대 코드 복사 / 그룹장: 그룹 이름 변경, 멤버 내보내기) -->
+    <!-- 그룹 관리 화면 -->
     <div id="group-manage-view" class="hidden">
       <div class="onboarding-center">
         <div class="onboarding-card">
@@ -354,42 +354,26 @@
     import { checkSchoolScheduleUpdates, formatScheduleChange } from "./js/scheduleSync.js";
     import { watchGroupEvents, formatGroupEventChange, watchPersonalEvents } from "./js/realtime.js";
 
+    // 상태
     let currentUser = null;
-    // 온보딩에서 선택한 내 학교 ({name, code, officeCode, region}), 건너뛰었으면 null
     let mySchool = null;
 
-    // 지금 보고 있는 캘린더가 "personal"(개인 캘린더 = 홈)인지 "group"(그룹 공유 캘린더)인지
     let viewMode = "personal";
-    // 내가 참여 중인 그룹 목록 (각 항목: {memberId, nickname, color, schoolCode, officeCode, groupId, groupName, groupCode, isOwner})
     let myGroups = [];
-    // viewMode가 "group"일 때, 지금 캘린더에 보여주고 있는 그룹 (myGroups 중 하나)
     let activeGroup = null;
-    // 활성 그룹의 멤버 목록 (참여자 표시용, 개인 캘린더에서는 항상 빈 배열)
     let groupMembers = [];
-    // 현재 보여주고 있는 캘린더(개인 또는 그룹)의 일정 목록 (렌더링용으로 가공된 형태)
     let events = [];
-    // 지금 보이는 달의 학사일정 (개인 캘린더: 내 학교 / 그룹 캘린더: 그룹원들의 학교) - 읽기 전용
     let schoolEvents = [];
-    // NEIS 학사일정 캐시 (key: "교육청코드:학교코드:시작일-종료일") - 달을 오갈 때마다 다시 요청하지 않도록
     const schoolScheduleCache = new Map();
-    // 달을 빠르게 넘길 때, 늦게 도착한 이전 달 응답이 화면을 덮어쓰지 않도록 하는 요청 번호
     let schoolLoadSeq = 0;
-    // 개인 캘린더에서 내 학사일정을 표시할 색 (그룹 캘린더에서는 각 멤버 색상을 사용)
     const PERSONAL_SCHOOL_COLOR = "blue";
-    // 앱을 켜두는 동안 내 학교 학사일정이 바뀌었는지 확인하는 주기 (30분)
     const SCHOOL_SYNC_INTERVAL = 30 * 60 * 1000;
-    // 마지막으로 학사일정 변경을 확인한 시각 (다른 탭에 있다가 돌아왔을 때 다시 확인할지 판단용)
     let lastSchoolSyncAt = 0;
-    // 알림 배너에 한 번에 보여줄 최대 변경 건수
     const MAX_NOTICE_ITEMS = 5;
-    // 그룹 일정 변경 지켜보기를 멈추는 함수, 지금 지켜보고 있는 그룹 목록 (그룹을 만들거나 나가면 다시 시작)
     let stopGroupWatch = () => {};
     let watchedGroupKey = null;
-    // 다른 탭/컴퓨터에서 개인 일정이 바뀌면 잠깐 기다렸다가 한 번에 다시 불러옴 (기간 일정은 여러 개가 연달아 들어오므로)
     const PERSONAL_RELOAD_DELAY = 500;
     let personalReloadTimer = null;
-    // 브라우저 알림을 보낼지 (메뉴에서 켜고 끔). 브라우저 알림 권한은 페이지에서 되돌릴 수 없어서,
-    // 권한과 별개로 켜짐/꺼짐 설정을 사용자별로 저장해둠
     const NOTIFY_SETTING_PREFIX = "wendy:notifyEnabled";
     let notifyEnabled = true;
 
@@ -426,12 +410,10 @@
     let viewYear = today.getFullYear();
     let viewMonth = today.getMonth();
 
-    // 일정 추가 화면에서 저장/뒤로가기 후 돌아갈 화면, 그리고 수정 중인 일정 id/출처("personal" 또는 "group")
     let returnView = "calendar";
     let editingEventId = null;
     let editingEventSource = null;
     let activeDateKey = null;
-    // 캘린더에서 드래그로 여러 날짜를 선택했을 때의 범위 (일정 추가 화면이 range 모드로 열림)
     let rangeStartDate = null;
     let rangeEndDate = null;
     const MAX_RANGE_DAYS = 31;
@@ -450,6 +432,7 @@
       return dates;
     }
 
+    // 화면 전환
     function showView(view) {
       calendarView.classList.toggle("hidden", view !== "calendar");
       addEventView.classList.toggle("hidden", view !== "add-event");
@@ -484,7 +467,6 @@
 
     function renderGroupMenu() {
       menuHomeBtn.classList.toggle("active", viewMode === "personal");
-      // 색상은 그룹마다 따로 정하므로, 그룹 캘린더를 보고 있을 때만 그 그룹의 내 색상을 바꿀 수 있게 함
       menuColorBtn.classList.toggle("hidden", !(viewMode === "group" && activeGroup));
       menuManageBtn.classList.toggle("hidden", !(viewMode === "group" && activeGroup));
 
@@ -529,12 +511,12 @@
       });
     }
 
+    // 그룹 목록
     async function loadMyGroups() {
       myGroups = await getMyGroups();
       restartGroupWatch();
       if (viewMode === "group") {
         if (!activeGroup || !myGroups.some((g) => g.groupId === activeGroup.groupId)) {
-          // 보고 있던 그룹에서 나갔거나 삭제됨 -> 홈(개인 캘린더)으로 되돌아감
           viewMode = "personal";
           activeGroup = null;
         } else {
@@ -544,6 +526,7 @@
       renderGroupMenu();
     }
 
+    // 캘린더 데이터 불러오기
     async function loadCalendarData() {
       if (viewMode === "personal") {
         groupMembers = [];
@@ -564,7 +547,6 @@
           getGroupEvents(activeGroup.groupId),
         ]);
         if (!membersData.some((member) => member.id === activeGroup.memberId)) {
-          // 그룹장이 나를 내보냈거나 그룹이 삭제돼서 더 이상 볼 수 없는 그룹 -> 홈(개인 캘린더)으로 되돌아감
           alert(`"${activeGroup.groupName}" 그룹에서 나가게 됐어요`);
           viewMode = "personal";
           activeGroup = null;
@@ -584,7 +566,6 @@
           source: "group",
         }));
       }
-      // 캘린더(개인/그룹)가 바뀌었을 수 있으니 이전 학사일정은 비우고 새로 불러옴 (캐시돼 있으면 바로 채워짐)
       schoolEvents = [];
       drawLegend();
       drawCalendar();
@@ -599,9 +580,6 @@
       return `${yyyy}${mm}${dd}`;
     }
 
-    /**
-     * 지금 달력 그리드에 보이는 날짜 범위 (앞뒤 달의 회색 칸 포함)를 YYYYMMDD로 반환합니다.
-     */
     function getVisibleYmdRange() {
       const startOffset = new Date(viewYear, viewMonth, 1).getDay();
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -612,11 +590,6 @@
       };
     }
 
-    /**
-     * 현재 캘린더에 표시할 학교 목록을 만듭니다. 같은 학교에 다니는 멤버가 여럿이면 한 번만 넣고,
-     * 칩 색상은 내가 그 학교에 있으면 내 색, 아니면 먼저 나온 멤버의 색을 씁니다.
-     * @returns {Array<{officeCode, schoolCode, color, memberNames: string[]}>}
-     */
     function getSchoolSources() {
       if (viewMode === "personal") {
         if (!mySchool) return [];
@@ -642,10 +615,7 @@
       return Array.from(bySchool.values());
     }
 
-    /**
-     * 지금 보이는 달의 학사일정을 NEIS에서 불러와 달력에 다시 그립니다.
-     * 공휴일은 공휴일 표시와 겹치고, 토요휴업일은 매주 토요일마다 들어 있어서 제외합니다.
-     */
+    // 학사일정 (NEIS)
     async function loadSchoolEvents() {
       const requestId = ++schoolLoadSeq;
       const sources = getSchoolSources();
@@ -659,7 +629,6 @@
               const rows = await getSchoolSchedule(source.officeCode, source.schoolCode, fromYmd, toYmd);
               schoolScheduleCache.set(cacheKey, rows);
             } catch (err) {
-              // 학사일정을 못 불러와도 내 일정은 그대로 보여야 하므로 조용히 넘어감 (다음에 다시 시도)
               console.warn("학사일정을 불러오지 못했어요", err);
               return [];
             }
@@ -668,7 +637,6 @@
         }),
       );
 
-      // 그 사이에 달/캘린더가 또 바뀌었으면 이 결과는 버림
       if (requestId !== schoolLoadSeq) return;
 
       schoolEvents = results
@@ -689,10 +657,7 @@
       drawCalendar();
     }
 
-    /**
-     * 내 학교 정보를 내가 참여 중인 모든 그룹의 멤버 정보에 반영합니다.
-     * (예전에 학교 정보 없이 참여했던 그룹도 그룹원들이 내 학사일정을 볼 수 있게 됨)
-     */
+    // 학교 정보 그룹에 동기화
     async function syncMySchoolToGroups() {
       if (!mySchool) return;
       const outdated = myGroups.filter(
@@ -705,15 +670,11 @@
         );
         await loadMyGroups();
       } catch (err) {
-        // 동기화에 실패해도 캘린더는 계속 사용할 수 있게 함 (다음 접속 때 다시 시도)
         console.warn("그룹에 학교 정보를 반영하지 못했어요", err);
       }
     }
 
-    /**
-     * 내 학교 학사일정이 지난번 확인 때와 달라졌는지 확인하고, 바뀌었으면 달력을 새로 불러오고 알림을 띄웁니다.
-     * 앱 접속 시, 30분마다, 다른 탭에 있다가 돌아왔을 때 실행됩니다.
-     */
+    // 학사일정 변경 확인
     async function syncSchoolSchedule() {
       if (!mySchool) return;
       lastSchoolSyncAt = Date.now();
@@ -722,13 +683,11 @@
       try {
         changes = await checkSchoolScheduleUpdates(currentUser.id, mySchool);
       } catch (err) {
-        // NEIS가 응답하지 않으면 이번엔 건너뛰고 다음 주기에 다시 확인
         console.warn("학사일정 변경 여부를 확인하지 못했어요", err);
         return;
       }
       if (changes.length === 0) return;
 
-      // 캐시에 남아 있는 예전 학사일정을 버리고 다시 불러와서, 바뀐 내용이 달력에 바로 보이게 함
       schoolScheduleCache.clear();
       loadSchoolEvents();
       showNotice(
@@ -738,9 +697,7 @@
       );
     }
 
-    /**
-     * 내 그룹 목록이 바뀌었으면 그룹 일정 변경 지켜보기를 새 목록으로 다시 시작합니다.
-     */
+    // 실시간 동기화
     function restartGroupWatch() {
       const key = myGroups.map((g) => `${g.groupId}:${g.memberId}`).sort().join(",");
       if (key === watchedGroupKey) return;
@@ -749,10 +706,6 @@
       stopGroupWatch = watchGroupEvents(currentUser.id, myGroups, handleGroupEventChanges);
     }
 
-    /**
-     * 그룹 일정이 바뀌면 (실시간 또는 지난 접속 이후) 보고 있는 그룹 캘린더를 새로 불러오고,
-     * 다른 그룹원이 바꾼 일정이 있으면 알림을 띄웁니다. 내가 바꾼 일정은 알리지 않습니다.
-     */
     async function handleGroupEventChanges(changes) {
       const others = changes.filter((change) => !change.isMine);
       if (others.length > 0) {
@@ -767,7 +720,6 @@
         );
       }
 
-      // 다른 기기에서 내가 바꾼 일정도 달력에는 반영되도록, 보고 있는 그룹이면 누가 바꿨든 새로 불러옴
       if (viewMode !== "group" || !activeGroup || !changes.some((change) => change.groupId === activeGroup.groupId)) return;
       await loadCalendarData();
       if (!dayDetailView.classList.contains("hidden") && activeDateKey) {
@@ -775,13 +727,8 @@
       }
     }
 
-    /**
-     * 내 개인 일정이 바뀌면 (다른 탭이나 다른 컴퓨터에서 바꾼 경우 포함) 개인 캘린더를 새로 불러옵니다.
-     * 그룹 캘린더를 보고 있을 때는 개인 일정이 안 보이므로 건너뜀 (홈으로 돌아올 때 새로 불러옴).
-     */
     function handlePersonalEventChange(payload) {
       if (viewMode !== "personal") return;
-      // 삭제는 모든 사용자의 개인 일정 삭제가 id만 담겨 오므로, 지금 보이는 내 일정일 때만 반영
       if (payload.eventType === "DELETE" && !events.some((event) => event.id === payload.old.id)) return;
 
       clearTimeout(personalReloadTimer);
@@ -799,6 +746,7 @@
       }, PERSONAL_RELOAD_DELAY);
     }
 
+    // 알림
     function showNotice(title, lines, notificationTitle) {
       const moreCount = lines.length - MAX_NOTICE_ITEMS;
 
@@ -817,7 +765,6 @@
       }
       syncNotice.classList.remove("hidden");
 
-      // 다른 탭을 보고 있을 때는 브라우저 알림으로도 알려줌 (메뉴에서 알림을 켜둔 경우만)
       if (
         "Notification" in window &&
         Notification.permission === "granted" &&
@@ -828,7 +775,6 @@
           const body = lines.slice(0, 3).join("\n") + (lines.length > 3 ? `\n외 ${lines.length - 3}건` : "");
           new Notification(notificationTitle, { body });
         } catch (err) {
-          // 일부 모바일 브라우저는 페이지에서 바로 알림을 만들 수 없음 - 화면 배너로만 알림
         }
       }
     }
@@ -839,7 +785,6 @@
 
     function loadNotifySetting() {
       try {
-        // 저장된 값이 없으면 켜짐 (예전에 알림을 허용해둔 사용자는 그대로 받도록)
         notifyEnabled = localStorage.getItem(`${NOTIFY_SETTING_PREFIX}:${currentUser.id}`) !== "off";
       } catch (err) {
         notifyEnabled = true;
@@ -850,7 +795,6 @@
       try {
         localStorage.setItem(`${NOTIFY_SETTING_PREFIX}:${currentUser.id}`, notifyEnabled ? "on" : "off");
       } catch (err) {
-        // 저장이 막혀 있으면 이번 접속 동안만 설정이 유지됨
       }
     }
 
@@ -881,6 +825,7 @@
       updateNotifyMenu();
     });
 
+    // 그룹 전환, 나가기, 삭제
     async function switchActiveGroup(groupId) {
       const found = myGroups.find((g) => g.groupId === groupId);
       if (!found) return;
@@ -928,6 +873,7 @@
       }
     }
 
+    // 달력
     function drawCalendar() {
       monthTitle.textContent = `${viewYear}년 ${viewMonth + 1}월`;
       renderCalendar(
@@ -936,7 +882,6 @@
         viewMonth,
         [...events, ...schoolEvents],
         (dateKey) => {
-          // 한 번 클릭 -> 그 날짜의 일정 보기
           openDayDetailView(dateKey);
         },
         (fromKey, toKey) => {
@@ -949,13 +894,11 @@
           openAddEventView(fromKey, null, toKey);
         },
         (dateKey) => {
-          // 더블클릭 -> 그 날짜에 일정 추가
           returnView = "calendar";
           openAddEventView(dateKey);
         },
       );
 
-      // 이 연도의 공휴일을 아직 API에서 받아오지 않았다면 받아온 뒤 다시 그림
       const year = viewYear;
       loadHolidays(year).then((loaded) => {
         if (loaded && year === viewYear) drawCalendar();
@@ -990,6 +933,7 @@
       loadSchoolEvents();
     });
 
+    // 일정 추가, 수정
     function buildTargetRow({ value, label, colorClass, checked }) {
       const row = document.createElement("label");
       row.className = "calendar-target-item";
@@ -1070,11 +1014,9 @@
           eventToEdit.source === "personal" ? "개인 캘린더" : activeGroup.groupName;
 
         if (eventToEdit.source === "personal") {
-          // 개인 일정은 나 혼자만 쓰는 캘린더라, 색상을 일정마다 자유롭게 바꿀 수 있게 함
           eventColorGroup.classList.remove("hidden");
           selectEventColor(eventToEdit.color || "gray");
         } else {
-          // 그룹 일정 색상은 멤버 색상으로 고정되므로 여기서는 바꿀 수 없음
           eventColorGroup.classList.add("hidden");
         }
       } else {
@@ -1098,6 +1040,7 @@
       }
     }
 
+    // 일정 보기
     function openDayDetailView(dateKey) {
       activeDateKey = dateKey;
       const [y, m, d] = dateKey.split("-").map(Number);
@@ -1157,6 +1100,7 @@
       showView("day-detail");
     }
 
+    // 일정 삭제
     async function handleDeleteEvent(event) {
       if (!confirm("이 일정을 삭제할까요?")) return;
       try {
@@ -1183,6 +1127,7 @@
       showView("calendar");
     });
 
+    // 일정 저장
     document.getElementById("save-event-btn").addEventListener("click", async () => {
       const date = document.getElementById("event-date").value;
       const time = document.getElementById("event-time").value;
@@ -1263,6 +1208,7 @@
     const menuOverlay = document.getElementById("menu-overlay");
     const menuDrawer = document.getElementById("menu-drawer");
 
+    // 메뉴
     function openMenu() {
       menuOverlay.classList.remove("hidden");
       menuDrawer.classList.remove("hidden");
@@ -1299,6 +1245,7 @@
     let selectedGroupColor = "red";
     let colorCheckTimer = null;
 
+    // 그룹 만들기, 참여
     function applyTakenColors(taken) {
       let selectedIsTaken = false;
       const dots = Array.from(groupColorRow.querySelectorAll(".group-color-dot"));
@@ -1333,7 +1280,6 @@
           const used = await getGroupUsedColors(groupId);
           applyTakenColors(used);
         } catch (err) {
-          // 코드가 아직 유효하지 않으면(입력 중) 조용히 무시 - 제출 시 다시 검증됨
           applyTakenColors([]);
         }
       }, 400);
@@ -1422,7 +1368,6 @@
 
           let member;
           try {
-            // 아직 멤버가 아닌 그룹에는 RLS 때문에 members에 직접 추가할 수 없어서, 초대 코드를 확인하는 DB 함수로 참여
             member = await joinGroupByCode({
               code,
               name: nickname,
@@ -1465,7 +1410,7 @@
     const colorChangeTakenHint = document.getElementById("color-change-taken-hint");
     const colorChangeSubmitBtn = document.getElementById("color-change-submit-btn");
 
-    // 색상을 바꾸는 그룹 (myGroups 중 하나), 새로 고른 색, 그 그룹의 다른 멤버가 쓰고 있는 색 목록
+    // 그룹 색상 변경
     let colorChangeGroup = null;
     let selectedMemberColor = null;
     let takenMemberColors = [];
@@ -1484,14 +1429,11 @@
     async function loadTakenMemberColors(group) {
       try {
         const used = await getGroupUsedColors(group.groupId);
-        // 그 사이에 다른 그룹의 색상 변경 화면을 열었으면 이 결과는 버림
         if (colorChangeGroup !== group) return;
         takenMemberColors = used.filter((color) => color !== group.color);
-        // 고른 색을 그 사이에 다른 멤버가 가져갔으면 원래 색으로 되돌림
         if (takenMemberColors.includes(selectedMemberColor)) selectedMemberColor = group.color;
         renderColorChangeRow();
       } catch (err) {
-        // 못 불러와도 저장할 때 DB에서 같은 색 중복을 막아줌
         console.warn("그룹에서 사용 중인 색상을 불러오지 못했어요", err);
       }
     }
@@ -1528,7 +1470,6 @@
         renderColorChangeRow();
         return;
       }
-      // 메뉴의 그룹 색, 범례, 내 일정 색이 모두 새 색으로 보이도록 다시 불러옴
       await loadMyGroups();
       showView("calendar");
       await loadCalendarData();
@@ -1552,7 +1493,7 @@
     const groupCodeCopyBtn = document.getElementById("group-code-copy-btn");
     const groupMemberList = document.getElementById("group-member-list");
 
-    // 그룹 관리 화면에서 보고 있는 그룹 (myGroups 중 하나, 지금 보고 있는 그룹 캘린더의 그룹)
+    // 그룹 관리
     let manageGroup = null;
     let copyResetTimer = null;
 
@@ -1563,10 +1504,6 @@
       return err.message || fallback;
     }
 
-    /**
-     * 그룹 관리 화면의 그룹 이름, 초대 코드, 멤버 목록을 다시 그립니다.
-     * 멤버 목록은 그룹 캘린더를 불러올 때 받아둔 groupMembers를 씁니다.
-     */
     function renderGroupManageView() {
       const group = manageGroup;
       groupManageName.textContent = group.groupName;
@@ -1638,7 +1575,6 @@
         groupRenameBtn.disabled = false;
         return;
       }
-      // 메뉴의 그룹 목록, 캘린더 위 그룹 이름이 새 이름으로 보이도록 다시 불러옴
       await loadMyGroups();
       manageGroup = myGroups.find((g) => g.groupId === manageGroup.groupId) || manageGroup;
       groupRenameInput.value = manageGroup.groupName;
@@ -1654,7 +1590,6 @@
         alert(groupOwnerErrorMessage(err, "멤버를 내보내는 중 오류가 발생했어요"));
         return;
       }
-      // 범례, 캘린더 일정, 멤버 목록에서 내보낸 멤버가 빠지도록 다시 불러옴
       await loadCalendarData();
       renderGroupManageView();
     }
@@ -1664,7 +1599,6 @@
       try {
         await navigator.clipboard.writeText(code);
       } catch (err) {
-        // https가 아닌 주소 등 클립보드를 쓸 수 없는 환경에서는 직접 복사할 수 있게 보여줌
         prompt("아래 초대 코드를 복사해주세요", code);
         return;
       }
@@ -1692,10 +1626,9 @@
     const schoolChangeList = document.getElementById("school-change-list");
     const schoolChangeSubmitBtn = document.getElementById("school-change-submit-btn");
 
-    // 내 학교 변경 화면에서 고른 학교
+    // 학교 변경
     let selectedNewSchool = null;
     let schoolSearchTimer = null;
-    // 검색어를 빠르게 바꿀 때, 늦게 도착한 이전 검색 결과가 화면을 덮어쓰지 않도록 하는 요청 번호
     let schoolSearchSeq = 0;
 
     function isSameSchool(a, b) {
@@ -1719,7 +1652,6 @@
         item.className = "school-list-item";
         if (selectedNewSchool && isSameSchool(selectedNewSchool, school)) item.classList.add("selected");
 
-        // 이름이 같은 학교가 여러 지역에 있을 수 있어서 주소도 같이 보여줌
         const info = document.createElement("span");
         info.className = "school-list-info";
         const name = document.createElement("span");
@@ -1797,12 +1729,10 @@
       try {
         currentUser = await updateMySchool(newSchool);
         mySchool = newSchool;
-        // 참여 중인 모든 그룹의 내 멤버 정보에도 새 학교를 반영 (그룹원들이 내 새 학교 학사일정을 보게 됨)
         await syncMySchoolToGroups();
         updateSchoolMenu();
         showView("calendar");
         await loadCalendarData();
-        // 새 학교의 학사일정 변경 알림 기준을 바로 저장해둠 (학교별로 따로 저장되고, 처음 확인할 때는 알림 없음)
         syncSchoolSchedule();
       } catch (err) {
         alert(err.message || "학교를 변경하는 중 오류가 발생했어요");
@@ -1821,31 +1751,27 @@
       showView("calendar");
     });
 
+    // 로그아웃
     document.getElementById("menu-logout-btn").addEventListener("click", async () => {
       try {
         await signOut();
       } catch (err) {
-        // 세션 정리에 실패해도 로그인 화면으로는 보내준다
       }
       window.location.href = "index.html";
     });
 
-    /**
-     * 같은 브라우저의 다른 탭에서 다른 계정으로 로그인하면 로그인 정보가 공유돼서, 이 탭은 화면에 보이는 계정이 아닌
-     * 다른 계정으로 DB에 요청하게 됨 (그러면 "new row violates row-level security policy" 오류로 막힘).
-     * 계정이 바뀌거나 로그아웃되면 이 탭을 새로 불러와서 지금 로그인된 계정에 맞춤.
-     */
+    // 다른 탭 계정 변경 감지
     function watchAccountChange() {
       function reloadIfAccountChanged(user) {
         if (!user || user.id !== currentUser.id) window.location.reload();
       }
       onAuthUserChange(reloadIfAccountChanged);
-      // 브라우저에 따라 다른 탭의 로그인 변경을 바로 알려주지 않을 수 있어서, 이 탭으로 돌아올 때도 한 번 더 확인
       document.addEventListener("visibilitychange", async () => {
         if (document.visibilityState === "visible") reloadIfAccountChanged(await getSessionUser());
       });
     }
 
+    // 초기화
     async function init() {
       currentUser = await getCurrentUser();
       if (!currentUser) {

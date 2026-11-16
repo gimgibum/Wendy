@@ -1,13 +1,4 @@
--- 그룹장 전용 기능: 그룹 이름 변경, 멤버 내보내기 (js/db.js 의 renameGroup, kickGroupMember)
--- Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하면 됩니다. (여러 번 실행해도 괜찮음)
---
--- 다른 멤버의 members 행을 지우거나 groups 를 고치는 건 RLS 정책으로 막혀 있으므로,
--- 이 함수들이 대신 처리함 (SECURITY DEFINER).
--- 대신 함수 안에서 로그인한 계정(auth.uid())이 그 그룹을 만든 사람(groups.created_by)인지 직접 확인하므로,
--- 그룹장만 쓸 수 있음.
--- 매개변수 타입은 테이블의 컬럼 타입을 그대로 따름 (%TYPE, 실행 시 NOTICE 가 떠도 정상)
-
--- 그룹 이름 변경 → 바뀐 그룹 한 줄 반환
+-- 그룹장 기능: 그룹 이름 변경, 멤버 내보내기 (RPC)
 create or replace function public.update_group_name(
   p_group_id public.groups.id%type,
   p_name public.groups.name%type
@@ -43,7 +34,6 @@ begin
 end;
 $$;
 
--- 멤버 내보내기: 그 멤버가 이 그룹에 올린 일정도 함께 지움 (그룹장 본인은 내보낼 수 없음)
 create or replace function public.kick_group_member(
   p_member_id public.members.id%type
 )
@@ -84,7 +74,6 @@ begin
 end;
 $$;
 
--- 로그인한 사용자만 부를 수 있게 함 (로그인 안 한 anon 은 불가)
 revoke all on function public.update_group_name from public, anon;
 revoke all on function public.kick_group_member from public, anon;
 grant execute on function public.update_group_name to authenticated;

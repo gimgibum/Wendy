@@ -1,0 +1,23 @@
+# Git 버전 관리 제외 설정
+
+# API 키 등 비밀 값 (키 이름 템플릿인 .env.example 만 올림)
+.env
+.env.*
+!.env.example
+
+# OS / 편집기
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Node (로컬 테스트 스크립트를 돌릴 때 생김)
+node_modules/
+
+# Claude Code 작업 폴더 (워크트리, 개인 설정)
+.claude/worktrees/
+.claude/settings.local.json
+
+# 로그
+*.log

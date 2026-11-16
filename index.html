@@ -111,7 +111,7 @@
 
     <div class="card">
 
-        <!-- 로그인 (form 이라서 입력칸에서 Enter 를 누르면 바로 로그인됨) -->
+        <!-- 로그인 -->
         <form id="login-form" novalidate>
             <div class="title-area">
                 <h1>Login</h1>
@@ -171,21 +171,20 @@
       const loginError = document.getElementById('login-error');
       const signupError = document.getElementById('signup-error');
 
-      // 2. [화면 전환] 회원가입 버튼 클릭했을 때
+      // 화면 전환
       goSignupBtn.addEventListener('click', () => {
         loginForm.classList.add('hidden');
         signupForm.classList.remove('hidden');
-        loginError.textContent = ''; // 에러 메시지 초기화
+        loginError.textContent = '';
       });
 
-      // 3. [화면 전환] "로그인" 버튼 클릭했을 때
       goLoginBtn.addEventListener('click', () => {
         signupForm.classList.add('hidden');
         loginForm.classList.remove('hidden');
-        signupError.textContent = ''; // 에러 메시지 초기화
+        signupError.textContent = '';
       });
 
-      // 4. [기능] 로그인 (버튼 클릭 또는 입력칸에서 Enter)
+      // 로그인
       loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const username = document.getElementById('login-username').value.trim();
@@ -200,7 +199,6 @@
         loginBtn.disabled = true;
         try {
           const { user } = await signIn(username, password);
-          // 예전에 학교 등록을 완료한 적이 있으면 바로 캘린더로, 처음이면 온보딩으로
           if (user?.user_metadata?.school) {
             window.location.href = 'calendar.html';
           } else {
@@ -215,7 +213,7 @@
         }
       });
 
-      // 5. [기능] 회원가입 (버튼 클릭 또는 입력칸에서 Enter)
+      // 회원가입
       signupForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const username = document.getElementById('signup-username').value.trim();
@@ -240,8 +238,6 @@
         try {
           const { session } = await signUp(username, password);
           if (session) {
-            // 가입과 동시에 세션이 발급되지만, 회원가입 후엔 로그인 화면으로 돌아가서
-            // 직접 로그인하도록 하기 위해 세션을 정리한다.
             await signOut();
           }
           signupForm.classList.add('hidden');

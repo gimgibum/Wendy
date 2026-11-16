@@ -77,6 +77,7 @@
       });
     }
 
+    // 학교 검색
     searchInput.addEventListener("input", () => {
       clearTimeout(debounceTimer);
       const keyword = searchInput.value.trim();
@@ -109,6 +110,7 @@
       return `${yyyy}${mm}${dd}`;
     }
 
+    // 학교 저장, 학사일정 불러오기
     nextBtn.addEventListener("click", async () => {
       if (!selectedSchool) return;
 
@@ -118,10 +120,8 @@
       sessionStorage.setItem("selectedSchool", JSON.stringify(selectedSchool));
 
       try {
-        // 계정에 학교 정보를 저장해서, 다음 로그인부터는 이 화면을 건너뛰고 바로 캘린더로 가게 함
         await supabase.auth.updateUser({ data: { school: selectedSchool } });
       } catch (err) {
-        // 저장에 실패해도 온보딩 자체는 계속 진행 (다음 로그인 때 다시 물어보게 됨)
       }
 
       const today = new Date();
@@ -135,8 +135,6 @@
           formatYmd(today),
           formatYmd(toDate),
         );
-        // 학사일정(시험기간, 방학 등)을 캘린더 일정 형식으로 변환
-        // 색상은 그룹 연동 전까지 내 임시 기본색으로 표시됨
         const schoolEvents = schedule.map((item) => ({
           date: `${item.date.slice(0, 4)}-${item.date.slice(4, 6)}-${item.date.slice(6, 8)}`,
           time: null,
@@ -145,7 +143,6 @@
         }));
         sessionStorage.setItem("schoolEvents", JSON.stringify(schoolEvents));
       } catch (err) {
-        // 학사일정을 못 불러와도 학교 등록 자체는 계속 진행됨
       }
 
       window.location.href = "calendar.html";
